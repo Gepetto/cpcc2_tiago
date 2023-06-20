@@ -1,0 +1,7 @@
+<library path="pveg_chained_controller">
+  <class name="cpcc2_tiago/PvegChainedController" type="cpcc2_tiago::PvegChainedController" base_class_type="controller_interface::ChainableControllerInterface">
+  <description>
+    The forward command controller commands a group of joints in a given interface
+  </description>
+  </class>
+</library>

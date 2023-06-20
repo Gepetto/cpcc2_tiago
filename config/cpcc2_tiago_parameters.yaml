@@ -1,0 +1,31 @@
+cpcc2_tiago:
+  joints: {
+    type: string_array,
+    default_value: [arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint, arm_7_joint], #it's very important for them to be ordered !
+    description: "Name of the joints to control",
+  }
+  pveg_command_interfaces_name: {
+    type: string,
+    default_value : effort,
+    description: "Name of the interface to command",
+  }
+  state_interfaces_name: {
+    type: string_array,
+    default_value : [effort, velocity, position],
+    description: "Name of the state interface",
+  }
+  motors_static_friction: {
+    type: double_array,
+    default_value: [1, 1, 1, 1, 1, 1, 1],
+    description: "motors static friction coefficient",
+  }
+  motors_viscous_friction: {
+    type: double_array,
+    default_value: [1, 1, 1, 1, 1, 1, 1],
+    description: "motors viscous friction coefficient",
+  }
+  motors_K_tau: {
+    type: double_array,
+    default_value: [0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    description: "motors K tau coefficient",
+  }
