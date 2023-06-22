@@ -220,11 +220,6 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
     command_interfaces_[joint_ind].set_value(corrected_eff_command_[joint_ind]);
-    RCLCPP_INFO(get_node()->get_logger(), (std::to_string(joint_ind)).c_str());
-    RCLCPP_INFO(get_node()->get_logger(),
-                (std::to_string(corrected_eff_command_[joint_ind]) +
-                 std::to_string(999) + std::to_string(joint_ind))
-                    .c_str());
   }
   return true;
 }
@@ -253,7 +248,7 @@ void PvegChainedController::read_joints_commands() {
   command_Kp = reference_interfaces_[3 * n_joints_];
   command_Kv = reference_interfaces_[3 * n_joints_ + 1];
 
-  // check if NaN , if nan set to 0
+  // check if NaN , if NaN set to 0
   ricatti_command_.Kp_command = (command_Kp == command_Kp) ? command_Kp : 0;
   ricatti_command_.Kv_command = (command_Kv == command_Kv) ? command_Kv : 0;
 }
