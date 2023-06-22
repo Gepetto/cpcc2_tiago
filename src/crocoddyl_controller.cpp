@@ -47,12 +47,12 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   n_joints_ = params_.joints.size();
 
   // same for the current state
-  current_state.position.resize(n_joints_,
-                                std::numeric_limits<double>::quiet_NaN());
-  current_state.velocity.resize(n_joints_,
-                                std::numeric_limits<double>::quiet_NaN());
-  current_state.effort.resize(n_joints_,
-                              std::numeric_limits<double>::quiet_NaN());
+  current_state_.position.resize(n_joints_,
+                                 std::numeric_limits<double>::quiet_NaN());
+  current_state_.velocity.resize(n_joints_,
+                                 std::numeric_limits<double>::quiet_NaN());
+  current_state_.effort.resize(n_joints_,
+                               std::numeric_limits<double>::quiet_NaN());
 
   RCLCPP_INFO(get_node()->get_logger(),
               "motors parameters loaded successfully");
