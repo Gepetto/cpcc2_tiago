@@ -32,7 +32,7 @@ def generate_launch_description():
     ld.add_action(pveg_chained_controller_launch)
 
     ld.add_action(
-        TimerAction(period=4.0, actions=[crocoddyl_controller_launch])
+        TimerAction(period=3.0, actions=[crocoddyl_controller_launch])
     )  # We wait for the pveg_chained_controller to fully load,then launch the crocoddyl one
 
     return ld
