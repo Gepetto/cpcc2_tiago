@@ -135,20 +135,14 @@ class PvegChainedController
   /// @brief placeholder for effort corrected for the motor's friction
   std::vector<double> corrected_eff_command_;
 
-  sensor_msgs::msg::JointState current_state;
+  sensor_msgs::msg::JointState current_state_;
+  void read_joints_commands();
 
-  void read_joints_commands(ricatti_command& command_ricatti,
-                            const std::vector<double>& command);
+  void read_state_from_hardware();
 
-  void read_state_from_hardware(sensor_msgs::msg::JointState& state_current);
+  void compute_ricatti_efforts();
 
-  void correct_efforts_for_friction(std::vector<double>& corrected_efforts,
-                                    std::vector<double> command_efforts,
-                                    sensor_msgs::msg::JointState state_current);
-
-  void compute_ricatti_efforts(std::vector<double>& computed_efforts,
-                               ricatti_command command_ricatti,
-                               sensor_msgs::msg::JointState state_current);
+  void correct_efforts_for_friction();
 };
 
 template <typename T>

@@ -75,40 +75,31 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Params params_;
 
   /// @brief Current state at time t, overwritten next timestep
-  sensor_msgs::msg::JointState current_state;
+  sensor_msgs::msg::JointState current_state_;
 
   /// @brief Read the actuators state, eff, vel, pos from the hardware interface
-  /// @param state_current JointState type to strore the current state
-  void read_state_from_hardware(sensor_msgs::msg::JointState& state_current);
+  void read_state_from_hardware();
 
   /// @brief set the effort command
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired torque
-  void set_eff_command(
-      std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-      std::vector<double> command_eff);
+  void set_eff_command(std::vector<double> command_eff);
 
   /// @brief set the velovity command
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired velocity
-  void set_vel_command(
-      std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-      std::vector<double> command_vel);
+  void set_vel_command(std::vector<double> command_vel);
 
   /// @brief set the position command
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired position
-  void set_pos_command(
-      std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-      std::vector<double> command_pos);
+  void set_pos_command(std::vector<double> command_pos);
 
   /// @brief set the gains command
   /// @param interface_command command_interface to send the command to
   /// @param command_Kp Kp gain
   /// @param command_Kv Kv gain
-  void set_gains_command(
-      std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-      double command_Kp, double command_Kv);
+  void set_gains_command(double command_Kp, double command_Kv);
 };
 }  // namespace cpcc2_tiago
 #endif

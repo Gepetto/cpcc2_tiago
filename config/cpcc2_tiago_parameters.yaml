@@ -16,12 +16,12 @@ cpcc2_tiago:
   }
   motors_static_friction: {
     type: double_array,
-    default_value: [1, 1, 1, 1, 1, 1, 1],
+    default_value: [0, 0, 0, 0, 0, 0, 0],
     description: "motors static friction coefficient",
   }
   motors_viscous_friction: {
     type: double_array,
-    default_value: [1, 1, 1, 1, 1, 1, 1],
+    default_value: [0, 0, 0, 0, 0, 0, 0],
     description: "motors viscous friction coefficient",
   }
   motors_K_tau: {

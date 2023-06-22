@@ -127,18 +127,17 @@ cpcc2_tiago::CrocoddylController::state_interface_configuration() const {
 
 controller_interface::return_type cpcc2_tiago::CrocoddylController::update(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    command_interfaces_[3 * joint_ind].set_value(10);
-    command_interfaces_[3 * joint_ind + 1].set_value(10);
-    command_interfaces_[3 * joint_ind + 2].set_value(10);
-  }
-  command_interfaces_[3 * n_joints_].set_value(1);
-  command_interfaces_[3 * n_joints_ + 1].set_value(1);
+  std::vector<double> eff = {0, 0, 0, 0, 0, 0, 0};
+  std::vector<double> vel = {0, 0, 0, 0, 0, 0, 0};
+  std::vector<double> pos = {1.5, 1, 1, 1, 1, 1, 1};
+  set_eff_command(eff);
+  set_vel_command(vel);
+  set_pos_command(pos);
+  set_gains_command(10, 1);
   return controller_interface::return_type::OK;
 }
 
-void CrocoddylController::read_state_from_hardware(
-    sensor_msgs::msg::JointState& state_current) {
+void CrocoddylController::read_state_from_hardware() {
   for (size_t i = 0; i < n_joints_; ++i) {
     std::string joint_name = params_.joints[i];
     auto position_state = std::find_if(
@@ -149,7 +148,7 @@ void CrocoddylController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_POSITION;
         });
-    state_current.position[i] = position_state->get_value();
+    current_state_.position[i] = position_state->get_value();
 
     auto velocity_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
@@ -159,7 +158,7 @@ void CrocoddylController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_VELOCITY;
         });
-    state_current.velocity[i] = velocity_state->get_value();
+    current_state_.velocity[i] = velocity_state->get_value();
 
     auto effort_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
@@ -169,37 +168,30 @@ void CrocoddylController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_EFFORT;
         });
-    state_current.effort[i] = effort_state->get_value();
+    current_state_.effort[i] = effort_state->get_value();
   }
 }
 
-void CrocoddylController::set_eff_command(
-    std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-    std::vector<double> command_eff) {
+void CrocoddylController::set_eff_command(std::vector<double> command_eff) {
   for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    interface_command[3 * joint_ind].set_value(command_eff[joint_ind]);
+    command_interfaces_[3 * joint_ind].set_value(command_eff[joint_ind]);
   }
 }
-void CrocoddylController::set_vel_command(
-    std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-    std::vector<double> command_vel) {
+void CrocoddylController::set_vel_command(std::vector<double> command_vel) {
   for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    interface_command[3 * joint_ind + 1].set_value(command_vel[joint_ind]);
+    command_interfaces_[3 * joint_ind + 1].set_value(command_vel[joint_ind]);
   }
 }
-void CrocoddylController::set_pos_command(
-    std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-    std::vector<double> command_pos) {
+void CrocoddylController::set_pos_command(std::vector<double> command_pos) {
   for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    interface_command[3 * joint_ind + 2].set_value(command_pos[joint_ind]);
+    command_interfaces_[3 * joint_ind + 2].set_value(command_pos[joint_ind]);
   }
 }
 
-void CrocoddylController::set_gains_command(
-    std::vector<hardware_interface::LoanedCommandInterface> interface_command,
-    double command_Kp, double command_Kv) {
-  interface_command[3 * n_joints_].set_value(command_Kp);
-  interface_command[3 * n_joints_ + 1].set_value(command_Kv);
+void CrocoddylController::set_gains_command(double command_Kp,
+                                            double command_Kv) {
+  command_interfaces_[3 * n_joints_].set_value(command_Kp);
+  command_interfaces_[3 * n_joints_ + 1].set_value(command_Kv);
 }
 
 }  // namespace cpcc2_tiago

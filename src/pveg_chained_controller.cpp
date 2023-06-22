@@ -74,12 +74,12 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
                                std::numeric_limits<double>::quiet_NaN());
 
   // same for the current state
-  current_state.position.resize(n_joints_,
-                                std::numeric_limits<double>::quiet_NaN());
-  current_state.velocity.resize(n_joints_,
-                                std::numeric_limits<double>::quiet_NaN());
-  current_state.effort.resize(n_joints_,
-                              std::numeric_limits<double>::quiet_NaN());
+  current_state_.position.resize(n_joints_,
+                                 std::numeric_limits<double>::quiet_NaN());
+  current_state_.velocity.resize(n_joints_,
+                                 std::numeric_limits<double>::quiet_NaN());
+  current_state_.effort.resize(n_joints_,
+                               std::numeric_limits<double>::quiet_NaN());
 
   ricatti_command_.eff_command.resize(n_joints_,
                                       std::numeric_limits<double>::quiet_NaN());
@@ -210,24 +210,26 @@ cpcc2_tiago::PvegChainedController::update_and_write_commands(
 
 bool cpcc2_tiago::PvegChainedController::update() {
   // first we read the current state of the robot
-  read_state_from_hardware(current_state);
+  read_state_from_hardware();
   // then gather the commands from the reference interface
-  read_joints_commands(ricatti_command_, reference_interfaces_);
+  read_joints_commands();
   // compute the torque base on the command and the current state
-  compute_ricatti_efforts(computed_eff_command_, ricatti_command_,
-                          current_state);
+  compute_ricatti_efforts();
   // correct for the actuators' friction
-  correct_efforts_for_friction(corrected_eff_command_,
-                               ricatti_command_.eff_command, current_state);
+  correct_efforts_for_friction();
 
   for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
     command_interfaces_[joint_ind].set_value(corrected_eff_command_[joint_ind]);
+    RCLCPP_INFO(get_node()->get_logger(), (std::to_string(joint_ind)).c_str());
+    RCLCPP_INFO(get_node()->get_logger(),
+                (std::to_string(corrected_eff_command_[joint_ind]) +
+                 std::to_string(999) + std::to_string(joint_ind))
+                    .c_str());
   }
   return true;
 }
 
-void PvegChainedController::read_joints_commands(
-    ricatti_command& command_ricatti, const std::vector<double>& command) {
+void PvegChainedController::read_joints_commands() {
   double command_eff;
   double command_vel;
   double command_pos;
@@ -235,30 +237,28 @@ void PvegChainedController::read_joints_commands(
   double command_Kv;
 
   for (size_t i = 0; i < n_joints_; i++) {
-    command_eff = command[3 * i];      // arm_i_joint/effort
-    command_vel = command[3 * i + 1];  // arm_i_joint/velocity
-    command_pos = command[3 * i + 2];  // arm_i_joint/position
+    command_eff = reference_interfaces_[3 * i];      // arm_i_joint/effort
+    command_vel = reference_interfaces_[3 * i + 1];  // arm_i_joint/velocity
+    command_pos = reference_interfaces_[3 * i + 2];  // arm_i_joint/position
 
     // check if NaN, if nan set to current state to avoid large jump in torque
-
-    command_ricatti.eff_command[i] =
-        (command_eff == command_eff) ? command_eff : current_state.effort[i];
-    command_ricatti.vel_command[i] =
-        (command_vel == command_vel) ? command_vel : current_state.velocity[i];
-    command_ricatti.pos_command[i] =
-        (command_pos == command_pos) ? command_pos : current_state.position[i];
+    ricatti_command_.eff_command[i] =
+        (command_eff == command_eff) ? command_eff : current_state_.effort[i];
+    ricatti_command_.vel_command[i] =
+        (command_vel == command_vel) ? command_vel : current_state_.velocity[i];
+    ricatti_command_.pos_command[i] =
+        (command_pos == command_pos) ? command_pos : current_state_.position[i];
   }
 
-  command_Kp = command[3 * n_joints_];
-  command_Kv = command[3 * n_joints_ + 1];
+  command_Kp = reference_interfaces_[3 * n_joints_];
+  command_Kv = reference_interfaces_[3 * n_joints_ + 1];
 
   // check if NaN , if nan set to 0
-  command_ricatti.Kp_command = (command_Kp == command_Kp) ? command_Kp : 0;
-  command_ricatti.Kv_command = (command_Kv == command_Kv) ? command_Kv : 0;
+  ricatti_command_.Kp_command = (command_Kp == command_Kp) ? command_Kp : 0;
+  ricatti_command_.Kv_command = (command_Kv == command_Kv) ? command_Kv : 0;
 }
 
-void PvegChainedController::read_state_from_hardware(
-    sensor_msgs::msg::JointState& state_current) {
+void PvegChainedController::read_state_from_hardware() {
   // Here we read the state of the robot directly from the hardware interface.
   // We have access to their name so we can sort and find each one
   // Even though we know the states order, this solution add a layer of
@@ -273,7 +273,7 @@ void PvegChainedController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_POSITION;
         });
-    state_current.position[i] = position_state->get_value();
+    current_state_.position[i] = position_state->get_value();
 
     auto velocity_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
@@ -283,7 +283,7 @@ void PvegChainedController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_VELOCITY;
         });
-    state_current.velocity[i] = velocity_state->get_value();
+    current_state_.velocity[i] = velocity_state->get_value();
 
     auto effort_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
@@ -293,31 +293,27 @@ void PvegChainedController::read_state_from_hardware(
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_EFFORT;
         });
-    state_current.effort[i] = effort_state->get_value();
+    current_state_.effort[i] = effort_state->get_value();
   }
 }
 
-void PvegChainedController::compute_ricatti_efforts(
-    std::vector<double>& computed_efforts, ricatti_command command_ricatti,
-    sensor_msgs::msg::JointState state_current) {
+void PvegChainedController::compute_ricatti_efforts() {
   for (size_t i = 0; i < n_joints_; i++) {
-    computed_efforts[i] =
-        command_ricatti.eff_command[i] +
-        command_ricatti.Kv_command *
-            (command_ricatti.vel_command[i] - state_current.velocity[i]) +
-        command_ricatti.Kp_command *
-            (command_ricatti.pos_command[i] - state_current.position[i]);
+    computed_eff_command_[i] =
+        ricatti_command_.eff_command[i] +
+        ricatti_command_.Kv_command *
+            (ricatti_command_.vel_command[i] - current_state_.velocity[i]) +
+        ricatti_command_.Kp_command *
+            (ricatti_command_.pos_command[i] - current_state_.position[i]);
   }
 }
 
-void PvegChainedController::correct_efforts_for_friction(
-    std::vector<double>& corrected_efforts, std::vector<double> command_efforts,
-    sensor_msgs::msg::JointState state_current) {
+void PvegChainedController::correct_efforts_for_friction() {
   for (size_t i = 0; i < n_joints_; i++) {
-    corrected_efforts[i] =
-        command_efforts[i] +
-        motors_static_friction_[i] * sign(state_current.velocity[i]) +
-        motors_viscous_friction_[i] * state_current.velocity[i];
+    corrected_eff_command_[i] =
+        computed_eff_command_[i] +
+        motors_static_friction_[i] * sign(current_state_.velocity[i]) +
+        motors_viscous_friction_[i] * current_state_.velocity[i];
   }
 }
 
