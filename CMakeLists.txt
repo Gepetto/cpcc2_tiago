@@ -33,6 +33,13 @@ find_package(rclcpp_action REQUIRED)
 find_package(ros2_control REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(generate_parameter_library REQUIRED)
+find_package(Boost REQUIRED)
+find_package(crocoddyl REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(eigenpy REQUIRED)
+include_directories(${crocoddyl_INCLUDE_DIRS})
+include_directories(${pinocchio_INCLUDE_DIRS})
+
 
 generate_parameter_library(
   cpcc2_tiago_parameters
@@ -49,6 +56,7 @@ add_library(
   crocoddyl_controller
   SHARED
   src/crocoddyl_controller.cpp
+  src/tiago_OCP_maker.cpp
 )
 target_include_directories(
   crocoddyl_controller
@@ -63,8 +71,12 @@ ament_target_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  pinocchio
+  crocoddyl
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+target_link_libraries(crocoddyl_controller /opt/openrobots/lib/libpinocchio.so)
+
 
 pluginlib_export_plugin_description_file(controller_interface crocoddyl_controller.xml)
 

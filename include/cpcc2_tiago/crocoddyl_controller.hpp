@@ -2,12 +2,22 @@
 #define CROCODDYL_CONTROLLER_HPP
 
 // Libraries
-#include <controller_interface/chainable_controller_interface.hpp>
-#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
+#include "controller_interface/helpers.hpp"
+#include "cpcc2_tiago/tiago_OCP_maker.hpp"
 #include "cpcc2_tiago/visibility_control.h"
+#include "hardware_interface/loaned_command_interface.hpp"
+#include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "pluginlib/class_list_macros.hpp"
+#include "rclcpp/logging.hpp"
+#include "rclcpp/qos.hpp"
 #include "rclcpp/subscription.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
@@ -64,6 +74,12 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   controller_interface::CallbackReturn read_parameters();
 
  private:
+  Model model_;
+  tiago_OCP::OCP OCP_tiago_;
+
+  Eigen::Vector3d hand_target_ =
+      Eigen::Vector3d(0.5, -0.2, 1);  // random target
+
   /// @brief Number of joints
   size_t n_joints_;
 
@@ -77,7 +93,16 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @brief Current state at time t, overwritten next timestep
   sensor_msgs::msg::JointState current_state_;
 
-  /// @brief Read the actuators state, eff, vel, pos from the hardware interface
+  /// @brief build the pinocchio reduced model
+  void build_model();
+
+  /// @brief callback used to update the target position
+  /// @param msg
+  void target_position_topic_callback(
+      const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+
+  /// @brief Read the actuators state, eff, vel, pos from the hardware
+  /// interface
   void read_state_from_hardware();
 
   /// @brief set the effort command

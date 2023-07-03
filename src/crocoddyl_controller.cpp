@@ -1,19 +1,72 @@
 #include "cpcc2_tiago/crocoddyl_controller.hpp"
 
-#include <algorithm>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "controller_interface/helpers.hpp"
-#include "hardware_interface/loaned_command_interface.hpp"
-#include "hardware_interface/types/hardware_interface_type_values.hpp"
-#include "rclcpp/logging.hpp"
-#include "rclcpp/qos.hpp"
-#include "sensor_msgs/msg/joint_state.hpp"
-
 namespace cpcc2_tiago {
+
+void CrocoddylController::build_model() {
+  const std::string urdf_filename = std::string(
+      "/opt/openrobots/include/example-robot-data/robots/tiago_description/"
+      "robots/tiago.urdf");
+
+  // Load the urdf model
+  Model full_model;
+  pinocchio::urdf::buildModel(urdf_filename, full_model);
+
+  std::vector<std::string> actuatedJointNames = {"universe"};
+
+  actuatedJointNames.insert(actuatedJointNames.end(), params_.joints.begin(),
+                            params_.joints.end());
+
+  std::vector<std::string> allJointNames = full_model.names;
+
+  // Create a list of joints to lock
+  std::vector<std::string> jointsToLock;
+
+  // Copy all elements from allJointNames that are not in actuatedJointNames
+  // to jointsToLock
+
+  std::copy_if(allJointNames.begin(), allJointNames.end(),
+               std::back_inserter(jointsToLock),
+               [&actuatedJointNames](const std::string& s) {
+                 return std::find(actuatedJointNames.begin(),
+                                  actuatedJointNames.end(),
+                                  s) == actuatedJointNames.end();
+               });
+
+  for (auto s : actuatedJointNames) {
+    std::cout << s << std::endl;
+  }
+
+  std::vector<FrameIndex> jointsToLockIDs = {};
+
+  for (std::string jn : jointsToLock) {
+    if (full_model.existJointName(jn)) {
+      jointsToLockIDs.push_back(full_model.getJointId(jn));
+    } else {
+      std::cout << "Joint " << jn << " not found in the model" << std::endl;
+    }
+  };
+
+  // Random configuration for the reduced model
+
+  Eigen::VectorXd q_rand = randomConfiguration(full_model);
+
+  model_ = buildReducedModel(full_model, jointsToLockIDs, q_rand);
+  std::cout << model_.nq << std::endl;
+  std::cout << model_.nv << std::endl;
+}
+
+void CrocoddylController::target_position_topic_callback(
+    std_msgs::msg::Float64MultiArray::SharedPtr msg) {
+  if (msg->data.size() != 3) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "target_position_topic_callback: msg->data.size() != 3");
+    return;
+  }
+  RCLCPP_INFO(get_node()->get_logger(), "Received new target position");
+  Eigen::Vector3d new_target(msg->data[0], msg->data[1], msg->data[2]);
+  OCP_tiago_.changeTarget(new_target);
+  std::cout << "New target: " << new_target.transpose() << std::endl;
+}
 
 void CrocoddylController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
@@ -60,8 +113,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
-controller_interface::CallbackReturn
-cpcc2_tiago::CrocoddylController::on_init() {
+controller_interface::CallbackReturn CrocoddylController::on_init() {
   try {
     declare_parameters();
   } catch (const std::exception& e) {
@@ -80,11 +132,39 @@ cpcc2_tiago::CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  build_model();
+
+  OCP_tiago_ = tiago_OCP::OCP(model_);
+
+  Eigen::VectorXd x0 = Eigen::VectorXd::Zero(model_.nq + model_.nv);
+  OCP_tiago_.setX0(x0);
+
+  FrameIndex lh_id = model_.getJointId("hand_tool_joint");
+  OCP_tiago_.setLhId(lh_id);
+
+  OCP_tiago_.setTarget(hand_target_);
+  RCLCPP_INFO(get_node()->get_logger(), "Set target to: %s",
+              (std::to_string(OCP_tiago_.get_target()[0]) + std::string(" ") +
+               std::to_string(OCP_tiago_.get_target()[1]) + std::string(" ") +
+               std::to_string(OCP_tiago_.get_target()[2]))
+                  .c_str());
+
+  OCP_tiago_.setHorizonLength(20);
+
+  OCP_tiago_.buildCostsModel();
+  OCP_tiago_.buildDiffActModel();
+  OCP_tiago_.buildSolver();
+
+  get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
+      "crocoddyl_controller/target_position", rclcpp::SystemDefaultsQoS(),
+      std::bind(&CrocoddylController::target_position_topic_callback, this,
+                std::placeholders::_1));
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
 controller_interface::InterfaceConfiguration
-cpcc2_tiago::CrocoddylController::command_interface_configuration() const {
+CrocoddylController::command_interface_configuration() const {
   RCLCPP_INFO(get_node()->get_logger(),
               "Command Interface CrocoddylController");
 
@@ -113,7 +193,7 @@ cpcc2_tiago::CrocoddylController::command_interface_configuration() const {
 }
 
 controller_interface::InterfaceConfiguration
-cpcc2_tiago::CrocoddylController::state_interface_configuration() const {
+CrocoddylController::state_interface_configuration() const {
   RCLCPP_INFO(get_node()->get_logger(), "State Interface CrocoddylController.");
 
   controller_interface::InterfaceConfiguration state_interfaces_config;
@@ -125,15 +205,33 @@ cpcc2_tiago::CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type cpcc2_tiago::CrocoddylController::update(
+controller_interface::return_type CrocoddylController::update(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-  std::vector<double> eff = {0, 0, 0, 0, 0, 0, 0};
+  read_state_from_hardware();
+
+  Eigen::VectorXd measuredq = Eigen::Map<const Eigen::VectorXd>(
+      current_state_.position.data(), current_state_.position.size());
+
+  Eigen::VectorXd measuredv = Eigen::Map<const Eigen::VectorXd>(
+      current_state_.velocity.data(), current_state_.velocity.size());
+
+  Eigen::VectorXd measuredX(model_.nq + model_.nv);
+  measuredX << measuredq, measuredv;
+
+  OCP_tiago_.solve(measuredX);
+
+  Eigen::VectorXd us = OCP_tiago_.get_torque();
+
+  std::vector<double> eff(us.data(), us.data() + us.size());
+  RCLCPP_INFO(get_node()->get_logger(),
+              (std::string("us[0]: ") + std::to_string(eff[0])).c_str());
+
   std::vector<double> vel = {0, 0, 0, 0, 0, 0, 0};
-  std::vector<double> pos = {1.5, 1, 1, 1, 1, 1, 1};
+  std::vector<double> pos = {0, 0, 0, 0, 0, 0, 0};
   set_eff_command(eff);
   set_vel_command(vel);
   set_pos_command(pos);
-  set_gains_command(10, 1);
+  set_gains_command(0, 0);
   return controller_interface::return_type::OK;
 }
 

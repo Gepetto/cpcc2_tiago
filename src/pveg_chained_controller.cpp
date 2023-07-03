@@ -1,18 +1,5 @@
 #include "cpcc2_tiago/pveg_chained_controller.hpp"
 
-#include <algorithm>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "controller_interface/helpers.hpp"
-#include "hardware_interface/loaned_command_interface.hpp"
-#include "hardware_interface/types/hardware_interface_type_values.hpp"
-#include "rclcpp/logging.hpp"
-#include "rclcpp/qos.hpp"
-#include "sensor_msgs/msg/joint_state.hpp"
-
 namespace cpcc2_tiago {
 // Create a parameter listener to listen to published ros2 param
 void PvegChainedController::declare_parameters() {
