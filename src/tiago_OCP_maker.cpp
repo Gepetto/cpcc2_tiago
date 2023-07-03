@@ -160,6 +160,12 @@ void OCP::logSolverData() {
 
 const Vector3d OCP::get_target() { return (target_); }
 const VectorXd OCP::get_torque() { return (solver_->get_us()[0]); }
+const VectorXd OCP::get_speed() {
+  return (solver_->get_xs()[0].segment(1, state_nq_));
+}
+const VectorXd OCP::get_position() {
+  return (solver_->get_xs()[0].tail(state_nv_));
+}
 const MatrixXd OCP::get_gain() { return (solver_->get_k()[0]); }
 
 };  // namespace tiago_OCP

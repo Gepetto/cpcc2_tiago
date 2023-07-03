@@ -42,10 +42,8 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
     command_interface_types_.push_back(joint + "/" +
                                        params_.pveg_command_interfaces_name);
 
-    for (long unsigned int s_inter_id = 0;
-         s_inter_id < params_.state_interfaces_name.size(); s_inter_id++) {
-      state_interface_types_.push_back(
-          joint + "/" + params_.state_interfaces_name[s_inter_id]);
+    for (auto s_inter_name : params_.state_interfaces_name) {
+      state_interface_types_.push_back(joint + "/" + s_inter_name);
     }
   }
 
@@ -57,7 +55,7 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   // Resize the vectors to have the correct size, and filling them with
   // quiet_NaN to avoid any misbehaving Reference _interfaces' size is 3 *
   // n_joints_ + 2 -> 3 value for each joint eff, vel, pos + 2 gains Kp, Kv
-  reference_interfaces_.resize(3 * n_joints_ + 2,
+  reference_interfaces_.resize(5 * n_joints_,
                                std::numeric_limits<double>::quiet_NaN());
 
   // same for the current state
@@ -74,6 +72,11 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
                                       std::numeric_limits<double>::quiet_NaN());
   ricatti_command_.pos_command.resize(n_joints_,
                                       std::numeric_limits<double>::quiet_NaN());
+
+  ricatti_command_.Kp_command.resize(n_joints_,
+                                     std::numeric_limits<double>::quiet_NaN());
+  ricatti_command_.Kv_command.resize(n_joints_,
+                                     std::numeric_limits<double>::quiet_NaN());
 
   corrected_eff_command_.resize(n_joints_,
                                 std::numeric_limits<double>::quiet_NaN());
@@ -157,15 +160,17 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
         get_node()->get_name(),
         params_.joints[i] + "/" + hardware_interface::HW_IF_POSITION,
         &reference_interfaces_[3 * i + 2]));
+
+    reference_interfaces.push_back(hardware_interface::CommandInterface(
+        std::string(get_node()->get_name()),
+        params_.joints[i] + "/" + reference_interface_name_Kp,
+        &reference_interfaces_[3 * i + 3]));
+
+    reference_interfaces.push_back(hardware_interface::CommandInterface(
+        std::string(get_node()->get_name()),
+        params_.joints[i] + "/" + reference_interface_name_Kv,
+        &reference_interfaces_[3 * i + 4]));
   }
-
-  reference_interfaces.push_back(hardware_interface::CommandInterface(
-      std::string(get_node()->get_name()), reference_interface_name_Kp,
-      &reference_interfaces_[3 * n_joints_]));
-
-  reference_interfaces.push_back(hardware_interface::CommandInterface(
-      std::string(get_node()->get_name()), reference_interface_name_Kv,
-      &reference_interfaces_[3 * n_joints_ + 1]));
 
   return reference_interfaces;
 }
@@ -222,6 +227,8 @@ void PvegChainedController::read_joints_commands() {
     command_eff = reference_interfaces_[3 * i];      // arm_i_joint/effort
     command_vel = reference_interfaces_[3 * i + 1];  // arm_i_joint/velocity
     command_pos = reference_interfaces_[3 * i + 2];  // arm_i_joint/position
+    command_Kp = reference_interfaces_[3 * i + 3];   // arm_i_joint/Kp
+    command_Kv = reference_interfaces_[3 * i + 4];   // arm_i_joint/Kv
 
     // check if NaN, if nan set to current state to avoid large jump in torque
     ricatti_command_.eff_command[i] =
@@ -230,14 +237,13 @@ void PvegChainedController::read_joints_commands() {
         (command_vel == command_vel) ? command_vel : current_state_.velocity[i];
     ricatti_command_.pos_command[i] =
         (command_pos == command_pos) ? command_pos : current_state_.position[i];
+    ricatti_command_.Kp_command[i] =
+        (command_Kp == command_Kp) ? command_Kp : 0;
+    ricatti_command_.Kv_command[i] =
+        (command_Kv == command_Kv) ? command_Kv : 0;
   }
 
-  command_Kp = reference_interfaces_[3 * n_joints_];
-  command_Kv = reference_interfaces_[3 * n_joints_ + 1];
-
   // check if NaN , if NaN set to 0
-  ricatti_command_.Kp_command = (command_Kp == command_Kp) ? command_Kp : 0;
-  ricatti_command_.Kv_command = (command_Kv == command_Kv) ? command_Kv : 0;
 }
 
 void PvegChainedController::read_state_from_hardware() {
@@ -283,9 +289,9 @@ void PvegChainedController::compute_ricatti_efforts() {
   for (size_t i = 0; i < n_joints_; i++) {
     computed_eff_command_[i] =
         ricatti_command_.eff_command[i] +
-        ricatti_command_.Kv_command *
+        ricatti_command_.Kv_command[i] *
             (ricatti_command_.vel_command[i] - current_state_.velocity[i]) +
-        ricatti_command_.Kp_command *
+        ricatti_command_.Kp_command[i] *
             (ricatti_command_.pos_command[i] - current_state_.position[i]);
   }
 }

@@ -124,7 +124,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @param interface_command command_interface to send the command to
   /// @param command_Kp Kp gain
   /// @param command_Kv Kv gain
-  void set_gains_command(double command_Kp, double command_Kv);
+  void set_gains_command(std::vector<double> command_Kp,
+                         std::vector<double> command_Kv);
 };
 }  // namespace cpcc2_tiago
 #endif

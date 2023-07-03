@@ -184,10 +184,12 @@ CrocoddylController::command_interface_configuration() const {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + params_.joints[i] + "/" +
         hardware_interface::HW_IF_POSITION);
-  }
 
-  command_interfaces_config.names.push_back("pveg_chained_controller/Kp");
-  command_interfaces_config.names.push_back("pveg_chained_controller/Kv");
+    command_interfaces_config.names.push_back("pveg_chained_controller/" +
+                                              params_.joints[i] + "/" + "Kp");
+    command_interfaces_config.names.push_back("pveg_chained_controller/" +
+                                              params_.joints[i] + "/" + "Kv");
+  }
 
   return command_interfaces_config;
 }
@@ -221,17 +223,23 @@ controller_interface::return_type CrocoddylController::update(
   OCP_tiago_.solve(measuredX);
 
   Eigen::VectorXd us = OCP_tiago_.get_torque();
+  Eigen::VectorXd vs = OCP_tiago_.get_speed();
+  Eigen::VectorXd qs = OCP_tiago_.get_position();
+  Eigen::VectorXd gs = OCP_tiago_.get_gain();
 
   std::vector<double> eff(us.data(), us.data() + us.size());
-  RCLCPP_INFO(get_node()->get_logger(),
-              (std::string("us[0]: ") + std::to_string(eff[0])).c_str());
+  std::vector<double> vel(vs.data(), vs.data() + vs.size());
+  std::vector<double> pos(qs.data(), qs.data() + qs.size());
+  std::vector<double> gains(gs.data(), gs.data() + gs.size());
 
-  std::vector<double> vel = {0, 0, 0, 0, 0, 0, 0};
-  std::vector<double> pos = {0, 0, 0, 0, 0, 0, 0};
+  RCLCPP_INFO(get_node()->get_logger(),
+              "us[0]: %f, vs[0]: %f, qs[0]: %f, k[0]: %f", eff[0], vel[0],
+              pos[0], gs[0]);
+
   set_eff_command(eff);
   set_vel_command(vel);
   set_pos_command(pos);
-  set_gains_command(0, 0);
+  set_gains_command(gains, std::vector<double>{1., 1., 1., 1., 1., 1., 1.});
   return controller_interface::return_type::OK;
 }
 
@@ -286,10 +294,12 @@ void CrocoddylController::set_pos_command(std::vector<double> command_pos) {
   }
 }
 
-void CrocoddylController::set_gains_command(double command_Kp,
-                                            double command_Kv) {
-  command_interfaces_[3 * n_joints_].set_value(command_Kp);
-  command_interfaces_[3 * n_joints_ + 1].set_value(command_Kv);
+void CrocoddylController::set_gains_command(std::vector<double> command_Kp,
+                                            std::vector<double> command_Kv) {
+  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
+    command_interfaces_[3 * joint_ind + 3].set_value(command_Kp[joint_ind]);
+    command_interfaces_[3 * joint_ind + 4].set_value(command_Kv[joint_ind]);
+  }
 }
 
 }  // namespace cpcc2_tiago

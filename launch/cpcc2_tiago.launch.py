@@ -18,7 +18,6 @@ from launch_pal.include_utils import include_launch_py_description
 
 
 def generate_launch_description():
-
     pveg_chained_controller_launch = include_launch_py_description(
         "cpcc2_tiago", ["launch", "pveg_chained_controller.launch.py"]
     )

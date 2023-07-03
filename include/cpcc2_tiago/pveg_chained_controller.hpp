@@ -104,8 +104,8 @@ class PvegChainedController
     std::vector<double> eff_command;
     std::vector<double> vel_command;
     std::vector<double> pos_command;
-    double Kp_command;
-    double Kv_command;
+    std::vector<double> Kp_command;
+    std::vector<double> Kv_command;
   };
 
  private:

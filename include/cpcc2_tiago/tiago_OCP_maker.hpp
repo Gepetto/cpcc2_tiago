@@ -87,6 +87,8 @@ class OCP {
 
   const Vector3d get_target();
   const VectorXd get_torque();
+  const VectorXd get_speed();
+  const VectorXd get_position();
   const MatrixXd get_gain();
 
   boost::shared_ptr<StateMultibody> get_state() { return state_; }
