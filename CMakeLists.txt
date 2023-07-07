@@ -51,12 +51,14 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+
 ## crocoddyl_controller
 add_library(
   crocoddyl_controller
   SHARED
   src/crocoddyl_controller.cpp
   src/tiago_OCP_maker.cpp
+
 )
 target_include_directories(
   crocoddyl_controller

@@ -154,18 +154,14 @@ void OCP::logSolverData() {
   std::cout << "Number of iterations :" << solver_->get_iter() << std::endl;
   std::cout << "Total cost :" << solver_->get_cost() << std::endl;
   std::cout << "Gradient norm :" << solver_->stoppingCriteria() << std::endl;
-  std::cout << "Us[0] :" << get_torque().transpose() << std::endl;
-  std::cout << "k[0] :" << get_gain().transpose() << std::endl;
+  std::cout << "Us[0] :" << get_us().transpose() << std::endl;
+  std::cout << "k[0] :" << get_gains().transpose() << std::endl;
 }
 
 const Vector3d OCP::get_target() { return (target_); }
-const VectorXd OCP::get_torque() { return (solver_->get_us()[0]); }
-const VectorXd OCP::get_speed() {
-  return (solver_->get_xs()[0].segment(1, state_nq_));
-}
-const VectorXd OCP::get_position() {
-  return (solver_->get_xs()[0].tail(state_nv_));
-}
-const MatrixXd OCP::get_gain() { return (solver_->get_k()[0]); }
+const double OCP::get_time_step() { return (time_step_); }
+const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
+const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
+const MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
 };  // namespace tiago_OCP

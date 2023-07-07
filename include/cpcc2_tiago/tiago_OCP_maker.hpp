@@ -49,7 +49,7 @@ class OCP {
 
   bool is_initialized_ = false;
 
-  size_t horizon_length_ = 3;
+  size_t horizon_length_ = 20;
   double time_step_ = 5e-2;
 
   size_t actuation_nu_;
@@ -86,10 +86,10 @@ class OCP {
   void logSolverData();
 
   const Vector3d get_target();
-  const VectorXd get_torque();
-  const VectorXd get_speed();
-  const VectorXd get_position();
-  const MatrixXd get_gain();
+  const double get_time_step();
+  const VectorXd get_us();
+  const VectorXd get_xs();
+  const MatrixXd get_gains();
 
   boost::shared_ptr<StateMultibody> get_state() { return state_; }
 };

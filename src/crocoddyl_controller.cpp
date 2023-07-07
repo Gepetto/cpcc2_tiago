@@ -51,21 +51,6 @@ void CrocoddylController::build_model() {
   Eigen::VectorXd q_rand = randomConfiguration(full_model);
 
   model_ = buildReducedModel(full_model, jointsToLockIDs, q_rand);
-  std::cout << model_.nq << std::endl;
-  std::cout << model_.nv << std::endl;
-}
-
-void CrocoddylController::target_position_topic_callback(
-    std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-  if (msg->data.size() != 3) {
-    RCLCPP_ERROR(get_node()->get_logger(),
-                 "target_position_topic_callback: msg->data.size() != 3");
-    return;
-  }
-  RCLCPP_INFO(get_node()->get_logger(), "Received new target position");
-  Eigen::Vector3d new_target(msg->data[0], msg->data[1], msg->data[2]);
-  OCP_tiago_.changeTarget(new_target);
-  std::cout << "New target: " << new_target.transpose() << std::endl;
 }
 
 void CrocoddylController::declare_parameters() {
@@ -150,15 +135,11 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
                   .c_str());
 
   OCP_tiago_.setHorizonLength(20);
+  OCP_tiago_.setTimeStep(5e-2);
 
   OCP_tiago_.buildCostsModel();
   OCP_tiago_.buildDiffActModel();
   OCP_tiago_.buildSolver();
-
-  get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
-      "crocoddyl_controller/target_position", rclcpp::SystemDefaultsQoS(),
-      std::bind(&CrocoddylController::target_position_topic_callback, this,
-                std::placeholders::_1));
 
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -171,26 +152,31 @@ CrocoddylController::command_interface_configuration() const {
   controller_interface::InterfaceConfiguration command_interfaces_config;
   command_interfaces_config.type =
       controller_interface::interface_configuration_type::INDIVIDUAL;
-
-  for (size_t i = 0; i < n_joints_; i++) {
-    // Claiming Command interface exported as reference interface by
-    // PvegContrller
+  // Claiming Command interface exported as reference interface by
+  // PvegContrller
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back("pveg_chained_controller/" +
                                               params_.joints[i] + "/" +
                                               hardware_interface::HW_IF_EFFORT);
-    command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.joints[i] + "/" +
-        hardware_interface::HW_IF_VELOCITY);
+  }
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + params_.joints[i] + "/" +
         hardware_interface::HW_IF_POSITION);
-
-    command_interfaces_config.names.push_back("pveg_chained_controller/" +
-                                              params_.joints[i] + "/" + "Kp");
-    command_interfaces_config.names.push_back("pveg_chained_controller/" +
-                                              params_.joints[i] + "/" + "Kv");
+  }
+  for (int i = 0; i < n_joints_; i++) {
+    command_interfaces_config.names.push_back(
+        "pveg_chained_controller/" + params_.joints[i] + "/" +
+        hardware_interface::HW_IF_VELOCITY);
   }
 
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
+    for (int j = 0; j < 2 * n_joints_; j++) {
+      command_interfaces_config.names.push_back(
+          "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
+          std::to_string(i).c_str() + "_" + std::to_string(j).c_str());
+    }
+  }
   return command_interfaces_config;
 }
 
@@ -209,42 +195,42 @@ CrocoddylController::state_interface_configuration() const {
 
 controller_interface::return_type CrocoddylController::update(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-  read_state_from_hardware();
+  auto current_t = rclcpp::Clock(RCL_ROS_TIME).now();
+  auto diff =
+      (current_t - prev_solve_time_).to_chrono<std::chrono::microseconds>();
 
-  Eigen::VectorXd measuredq = Eigen::Map<const Eigen::VectorXd>(
-      current_state_.position.data(), current_state_.position.size());
+  if (diff.count() + approx_solving_t_us_ > OCP_tiago_.get_time_step() * 1e6) {
+    RCLCPP_INFO(get_node()->get_logger(), "C");
+    prev_solve_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
-  Eigen::VectorXd measuredv = Eigen::Map<const Eigen::VectorXd>(
-      current_state_.velocity.data(), current_state_.velocity.size());
+    read_state_from_hardware();
 
-  Eigen::VectorXd measuredX(model_.nq + model_.nv);
-  measuredX << measuredq, measuredv;
+    Eigen::VectorXd measuredq = Eigen::Map<const Eigen::VectorXd>(
+        current_state_.position.data(), current_state_.position.size());
 
-  OCP_tiago_.solve(measuredX);
+    Eigen::VectorXd measuredv = Eigen::Map<const Eigen::VectorXd>(
+        current_state_.velocity.data(), current_state_.velocity.size());
 
-  Eigen::VectorXd us = OCP_tiago_.get_torque();
-  Eigen::VectorXd vs = OCP_tiago_.get_speed();
-  Eigen::VectorXd qs = OCP_tiago_.get_position();
-  Eigen::VectorXd gs = OCP_tiago_.get_gain();
+    Eigen::VectorXd measuredX(model_.nq + model_.nv);
+    measuredX << measuredq, measuredv;
 
-  std::vector<double> eff(us.data(), us.data() + us.size());
-  std::vector<double> vel(vs.data(), vs.data() + vs.size());
-  std::vector<double> pos(qs.data(), qs.data() + qs.size());
-  std::vector<double> gains(gs.data(), gs.data() + gs.size());
+    OCP_tiago_.solve(measuredX);
 
-  RCLCPP_INFO(get_node()->get_logger(),
-              "us[0]: %f, vs[0]: %f, qs[0]: %f, k[0]: %f", eff[0], vel[0],
-              pos[0], gs[0]);
+    Eigen::VectorXd us = OCP_tiago_.get_us();
+    Eigen::VectorXd xs = OCP_tiago_.get_xs();
+    Eigen::MatrixXd gs = OCP_tiago_.get_gains();
 
-  set_eff_command(eff);
-  set_vel_command(vel);
-  set_pos_command(pos);
-  set_gains_command(gains, std::vector<double>{1., 1., 1., 1., 1., 1., 1.});
+    // std::cout << "gs: " << command_interfaces_.size() << std::endl;
+
+    set_u_command(us);
+    set_x_command(xs);
+    set_K_command(gs);
+  }
   return controller_interface::return_type::OK;
 }
 
 void CrocoddylController::read_state_from_hardware() {
-  for (size_t i = 0; i < n_joints_; ++i) {
+  for (int i = 0; i < n_joints_; ++i) {
     std::string joint_name = params_.joints[i];
     auto position_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
@@ -278,30 +264,25 @@ void CrocoddylController::read_state_from_hardware() {
   }
 }
 
-void CrocoddylController::set_eff_command(std::vector<double> command_eff) {
-  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    command_interfaces_[3 * joint_ind].set_value(command_eff[joint_ind]);
+void CrocoddylController::set_u_command(Eigen::VectorXd command_u) {
+  for (int i = 0; i < n_joints_; i++) {
+    command_interfaces_[i].set_value(command_u[i]);
   }
 }
-void CrocoddylController::set_vel_command(std::vector<double> command_vel) {
-  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    command_interfaces_[3 * joint_ind + 1].set_value(command_vel[joint_ind]);
+void CrocoddylController::set_x_command(Eigen::VectorXd command_x) {
+  for (int i = 0; i < 2 * n_joints_; i++) {
+    command_interfaces_[n_joints_ + i].set_value(command_x[i]);
+    command_interfaces_[2 * n_joints_ + i].set_value(command_x[n_joints_ + i]);
   }
 }
-void CrocoddylController::set_pos_command(std::vector<double> command_pos) {
-  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    command_interfaces_[3 * joint_ind + 2].set_value(command_pos[joint_ind]);
+void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
+  for (int i = 0; i < n_joints_; ++i) {
+    for (int j = 0; j < 2 * n_joints_; j++) {
+      command_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j].set_value(
+          command_K(i, j));
+    }
   }
 }
-
-void CrocoddylController::set_gains_command(std::vector<double> command_Kp,
-                                            std::vector<double> command_Kv) {
-  for (size_t joint_ind = 0; joint_ind < n_joints_; ++joint_ind) {
-    command_interfaces_[3 * joint_ind + 3].set_value(command_Kp[joint_ind]);
-    command_interfaces_[3 * joint_ind + 4].set_value(command_Kv[joint_ind]);
-  }
-}
-
 }  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"

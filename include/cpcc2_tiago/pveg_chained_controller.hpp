@@ -3,13 +3,13 @@
 
 // Libraries
 #include <algorithm>
-#include <controller_interface/chainable_controller_interface.hpp>
-#include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "Eigen/Dense"
+#include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
 #include "cpcc2_tiago/visibility_control.h"
@@ -100,17 +100,17 @@ class PvegChainedController
 
   controller_interface::CallbackReturn read_parameters();
 
+ private:
   struct ricatti_command {
-    std::vector<double> eff_command;
-    std::vector<double> vel_command;
-    std::vector<double> pos_command;
-    std::vector<double> Kp_command;
-    std::vector<double> Kv_command;
+    Eigen::VectorXd u_command;
+    Eigen::VectorXd x_command;
+    Eigen::MatrixXd K_command;
   };
 
- private:
+  ricatti_command ricatti_command_;
+
   /// @brief Number of joints
-  size_t n_joints_;
+  int n_joints_;
 
   /// @brief Vector of Joint Names
   std::vector<std::string> joint_names_;
@@ -136,13 +136,6 @@ class PvegChainedController
   /// @brief vector of the motors current to torque coefficient
   std::vector<double> motors_K_tau_;
 
-  /// @brief the ricatti_command is a struct to easily store the command sent by
-  /// the crocoddyl controller
-  ricatti_command ricatti_command_;
-
-  /// @brief placeholder for computed effort command based on T* = T + Kv*ΔVel +
-  /// Kp*ΔPos
-  std::vector<double> computed_eff_command_;
   /// @brief placeholder for effort corrected for the motor's friction
   std::vector<double> corrected_eff_command_;
 
@@ -151,9 +144,9 @@ class PvegChainedController
 
   void read_state_from_hardware();
 
-  void compute_ricatti_efforts();
-
   void correct_efforts_for_friction();
+
+  void set_effort_command(Eigen::VectorXd eff_command);
 };
 
 template <typename T>

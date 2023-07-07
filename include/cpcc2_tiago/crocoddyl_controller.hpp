@@ -3,8 +3,10 @@
 
 // Libraries
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -76,12 +78,14 @@ class CrocoddylController : public controller_interface::ControllerInterface {
  private:
   Model model_;
   tiago_OCP::OCP OCP_tiago_;
+  rclcpp::Time prev_solve_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  int approx_solving_t_us_ = 5000;
 
-  Eigen::Vector3d hand_target_ =
-      Eigen::Vector3d(0.5, -0.2, 1);  // random target
+  Eigen::Vector3d hand_target_ = Eigen::Vector3d(0.8, 0,
+                                                 0.8);  // random target
 
   /// @brief Number of joints
-  size_t n_joints_;
+  int n_joints_;
 
   /// @brief all types of state interface, in our case effort, velocity,
   /// position
@@ -96,11 +100,6 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @brief build the pinocchio reduced model
   void build_model();
 
-  /// @brief callback used to update the target position
-  /// @param msg
-  void target_position_topic_callback(
-      const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
   void read_state_from_hardware();
@@ -108,24 +107,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @brief set the effort command
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired torque
-  void set_eff_command(std::vector<double> command_eff);
-
-  /// @brief set the velovity command
-  /// @param interface_command command_interface to send the command to
-  /// @param command_eff vector of the desired velocity
-  void set_vel_command(std::vector<double> command_vel);
-
-  /// @brief set the position command
-  /// @param interface_command command_interface to send the command to
-  /// @param command_eff vector of the desired position
-  void set_pos_command(std::vector<double> command_pos);
-
-  /// @brief set the gains command
-  /// @param interface_command command_interface to send the command to
-  /// @param command_Kp Kp gain
-  /// @param command_Kv Kv gain
-  void set_gains_command(std::vector<double> command_Kp,
-                         std::vector<double> command_Kv);
+  void set_u_command(Eigen::VectorXd command_u);
+  void set_x_command(Eigen::VectorXd command_x);
+  void set_K_command(Eigen::MatrixXd comman_K);
 };
 }  // namespace cpcc2_tiago
 #endif
