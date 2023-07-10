@@ -61,12 +61,9 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
                                std::numeric_limits<double>::quiet_NaN());
 
   // same for the current state
-  current_state_.position.resize(n_joints_,
-                                 std::numeric_limits<double>::quiet_NaN());
-  current_state_.velocity.resize(n_joints_,
-                                 std::numeric_limits<double>::quiet_NaN());
-  current_state_.effort.resize(n_joints_,
-                               std::numeric_limits<double>::quiet_NaN());
+  current_state_.position.resize(n_joints_);
+  current_state_.velocity.resize(n_joints_);
+  current_state_.effort.resize(n_joints_);
 
   ricatti_command_.u_command.resize(n_joints_);
   ricatti_command_.x_command.resize(2 * n_joints_);
@@ -194,14 +191,8 @@ bool cpcc2_tiago::PvegChainedController::update() {
   // first we read the current state of the robot
   read_state_from_hardware();
 
-  Eigen::VectorXd measuredq = Eigen::Map<const Eigen::VectorXd>(
-      current_state_.position.data(), current_state_.position.size());
-
-  Eigen::VectorXd measuredv = Eigen::Map<const Eigen::VectorXd>(
-      current_state_.velocity.data(), current_state_.velocity.size());
-
   Eigen::VectorXd measuredX(2 * n_joints_);
-  measuredX << measuredq, measuredv;
+  measuredX << current_state_.position, current_state_.velocity;
 
   // then gather the commands from the reference interface
   read_joints_commands();
@@ -246,8 +237,6 @@ void PvegChainedController::read_joints_commands() {
           (command_K == command_K) ? command_K : 0;
     }
   }
-
-  // check if NaN , if NaN set to 0
 }
 
 void PvegChainedController::read_state_from_hardware() {

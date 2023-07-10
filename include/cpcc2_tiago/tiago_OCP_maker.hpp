@@ -49,8 +49,8 @@ class OCP {
 
   bool is_initialized_ = false;
 
-  size_t horizon_length_ = 20;
-  double time_step_ = 5e-2;
+  size_t horizon_length_;
+  double time_step_;
 
   size_t actuation_nu_;
   size_t state_nv_;

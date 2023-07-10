@@ -107,6 +107,12 @@ class PvegChainedController
     Eigen::MatrixXd K_command;
   };
 
+  struct state {
+    Eigen::VectorXd position;
+    Eigen::VectorXd velocity;
+    Eigen::VectorXd effort;
+  };
+
   ricatti_command ricatti_command_;
 
   /// @brief Number of joints
@@ -139,7 +145,7 @@ class PvegChainedController
   /// @brief placeholder for effort corrected for the motor's friction
   std::vector<double> corrected_eff_command_;
 
-  sensor_msgs::msg::JointState current_state_;
+  state current_state_;
   void read_joints_commands();
 
   void read_state_from_hardware();

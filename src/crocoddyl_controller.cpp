@@ -85,12 +85,9 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   n_joints_ = params_.joints.size();
 
   // same for the current state
-  current_state_.position.resize(n_joints_,
-                                 std::numeric_limits<double>::quiet_NaN());
-  current_state_.velocity.resize(n_joints_,
-                                 std::numeric_limits<double>::quiet_NaN());
-  current_state_.effort.resize(n_joints_,
-                               std::numeric_limits<double>::quiet_NaN());
+  current_state_.position.resize(n_joints_);
+  current_state_.velocity.resize(n_joints_);
+  current_state_.effort.resize(n_joints_);
 
   RCLCPP_INFO(get_node()->get_logger(),
               "motors parameters loaded successfully");
@@ -128,11 +125,8 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.setLhId(lh_id);
 
   OCP_tiago_.setTarget(hand_target_);
-  RCLCPP_INFO(get_node()->get_logger(), "Set target to: %s",
-              (std::to_string(OCP_tiago_.get_target()[0]) + std::string(" ") +
-               std::to_string(OCP_tiago_.get_target()[1]) + std::string(" ") +
-               std::to_string(OCP_tiago_.get_target()[2]))
-                  .c_str());
+
+  std::cout << "Set target to: " << hand_target_ << std::endl;
 
   OCP_tiago_.setHorizonLength(20);
   OCP_tiago_.setTimeStep(5e-2);
@@ -200,19 +194,15 @@ controller_interface::return_type CrocoddylController::update(
       (current_t - prev_solve_time_).to_chrono<std::chrono::microseconds>();
 
   if (diff.count() + approx_solving_t_us_ > OCP_tiago_.get_time_step() * 1e6) {
-    RCLCPP_INFO(get_node()->get_logger(), "C");
-    prev_solve_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+    std::cout << "Solver frequency: " << 1 / (diff.count() * 1e-6) << " Hz"
+              << std::endl;
+
+    prev_solve_time_ = current_t;
 
     read_state_from_hardware();
 
-    Eigen::VectorXd measuredq = Eigen::Map<const Eigen::VectorXd>(
-        current_state_.position.data(), current_state_.position.size());
-
-    Eigen::VectorXd measuredv = Eigen::Map<const Eigen::VectorXd>(
-        current_state_.velocity.data(), current_state_.velocity.size());
-
     Eigen::VectorXd measuredX(model_.nq + model_.nv);
-    measuredX << measuredq, measuredv;
+    measuredX << current_state_.position, current_state_.velocity;
 
     OCP_tiago_.solve(measuredX);
 
@@ -220,12 +210,11 @@ controller_interface::return_type CrocoddylController::update(
     Eigen::VectorXd xs = OCP_tiago_.get_xs();
     Eigen::MatrixXd gs = OCP_tiago_.get_gains();
 
-    // std::cout << "gs: " << command_interfaces_.size() << std::endl;
-
     set_u_command(us);
     set_x_command(xs);
     set_K_command(gs);
   }
+
   return controller_interface::return_type::OK;
 }
 
