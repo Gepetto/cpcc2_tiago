@@ -168,7 +168,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -191,21 +191,24 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time &time,
-                            const rclcpp::Duration & /*period*/) {
-
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time &time, const rclcpp::Duration & /*period*/) {
   // RCLCPP_INFO(
   //     get_node()->get_logger(),
   //     std::to_string(period.to_chrono<std::chrono::microseconds>().count())
   //         .c_str());
+  start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+  update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
+                               .to_chrono<std::chrono::microseconds>()
+                               .count() *
+                           1e-6);
+  prev_update_time_ = start_update_time_;
 
-  diff_ = (time - prev_solving_time_).to_chrono<std::chrono::microseconds>();
+  diff_ = (start_update_time_ - prev_solving_time_)
+              .to_chrono<std::chrono::microseconds>();
 
   if (diff_.count() + solving_time_ > OCP_tiago_.get_time_step() * 1e6) {
-
     start_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
-    prev_solving_time_ = start_solving_time_;
 
     it_ = 1;
 
@@ -226,6 +229,16 @@ CrocoddylController::update(const rclcpp::Time &time,
     solving_time_ = (rclcpp::Clock(RCL_ROS_TIME).now() - start_solving_time_)
                         .to_chrono<std::chrono::microseconds>()
                         .count();
+    std::cout << "Solving frequency: "
+              << 1 / ((start_solving_time_ - prev_solving_time_)
+                          .to_chrono<std::chrono::microseconds>()
+                          .count() *
+                      1e-6)
+              << " Hz, solving time: " << solving_time_ << "us "
+              << "Update frequency: " << update_frequency_ << " Hz"
+              << std::endl;
+
+    prev_solving_time_ = start_solving_time_;
 
   } else {
     // std::cout << "it: " << it_ << std::endl;
@@ -236,13 +249,6 @@ CrocoddylController::update(const rclcpp::Time &time,
     }
     set_x_command(xs_[it_]);
   }
-
-  update_frequency_ = (rclcpp::Clock(RCL_ROS_TIME).now() - time)
-                          .to_chrono<std::chrono::microseconds>()
-                          .count();
-  std::cout << "Solving frequency: " << 1 / (diff_.count() * 1e-6)
-            << " Hz, Solving time : " << solving_time_ << " us "
-            << "Update frequency: " << update_frequency_ << std::endl;
 
   return controller_interface::return_type::OK;
 }
@@ -301,7 +307,7 @@ void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
     }
   }
 }
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
