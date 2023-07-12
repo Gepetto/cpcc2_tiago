@@ -26,7 +26,7 @@ void CrocoddylController::build_model() {
 
   std::copy_if(allJointNames.begin(), allJointNames.end(),
                std::back_inserter(jointsToLock),
-               [&actuatedJointNames](const std::string& s) {
+               [&actuatedJointNames](const std::string &s) {
                  return std::find(actuatedJointNames.begin(),
                                   actuatedJointNames.end(),
                                   s) == actuatedJointNames.end();
@@ -75,7 +75,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  for (const auto& joint : params_.joints) {
+  for (const auto &joint : params_.joints) {
     for (long unsigned int s_inter_id = 0;
          s_inter_id < params_.state_interfaces_name.size(); s_inter_id++) {
       state_interface_types_.push_back(
@@ -89,6 +89,8 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   current_state_.velocity.resize(n_joints_);
   current_state_.effort.resize(n_joints_);
 
+  measuredX_.resize(2 * n_joints_);
+
   RCLCPP_INFO(get_node()->get_logger(),
               "motors parameters loaded successfully");
 
@@ -98,7 +100,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 controller_interface::CallbackReturn CrocoddylController::on_init() {
   try {
     declare_parameters();
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n",
             e.what());
     return controller_interface::CallbackReturn::ERROR;
@@ -129,7 +131,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   std::cout << "Set target to: " << hand_target_ << std::endl;
 
   OCP_tiago_.setHorizonLength(20);
-  OCP_tiago_.setTimeStep(20e-2);
+  OCP_tiago_.setTimeStep(5e-2);
 
   OCP_tiago_.buildCostsModel();
   OCP_tiago_.buildDiffActModel();
@@ -166,7 +168,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -189,47 +191,58 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-  auto current_t = rclcpp::Clock(RCL_ROS_TIME).now();
-  auto diff =
-      (current_t - prev_solve_time_).to_chrono<std::chrono::microseconds>();
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time &time,
+                            const rclcpp::Duration & /*period*/) {
 
-  if (diff.count() > OCP_tiago_.get_time_step() * 1e6) {
+  // RCLCPP_INFO(
+  //     get_node()->get_logger(),
+  //     std::to_string(period.to_chrono<std::chrono::microseconds>().count())
+  //         .c_str());
+
+  diff_ = (time - prev_solving_time_).to_chrono<std::chrono::microseconds>();
+
+  if (diff_.count() + solving_time_ > OCP_tiago_.get_time_step() * 1e6) {
+
+    start_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+    prev_solving_time_ = start_solving_time_;
+
     it_ = 1;
-    // std::cout << "Solver frequency: " << 1 / (diff.count() * 1e-6) << " Hz"
-    //           << std::endl;
-
-    prev_solve_time_ = current_t;
 
     read_state_from_hardware();
 
-    Eigen::VectorXd measuredX(model_.nq + model_.nv);
-    measuredX << current_state_.position, current_state_.velocity;
+    measuredX_ << current_state_.position, current_state_.velocity;
 
-    OCP_tiago_.solve(measuredX);
+    OCP_tiago_.solve(measuredX_);
 
-    Eigen::VectorXd us = OCP_tiago_.get_us();
-    std::vector<VectorXd> xs = OCP_tiago_.get_xs();
-    std::vector<SolverDDP::MatrixXdRowMajor> gs = OCP_tiago_.get_gains();
+    us_ = OCP_tiago_.get_us();
+    xs_ = OCP_tiago_.get_xs();
+    gs_ = OCP_tiago_.get_gains();
 
-    set_u_command(us);
-    set_x_command(xs[0]);
-    set_K_command(gs[0]);
+    set_u_command(us_);
+    set_x_command(xs_[0]);
+    set_K_command(gs_[0]);
+
+    solving_time_ = (rclcpp::Clock(RCL_ROS_TIME).now() - start_solving_time_)
+                        .to_chrono<std::chrono::microseconds>()
+                        .count();
+
   } else {
-    auto xs = OCP_tiago_.get_xs();
-    auto gs = OCP_tiago_.get_gains();
+    // std::cout << "it: " << it_ << std::endl;
+    xs_ = OCP_tiago_.get_xs();
+    gs_ = OCP_tiago_.get_gains();
     if (it_ < OCP_tiago_.get_horizon_length() - 1) {
       it_++;
-      set_x_command(xs[it_]);
-      set_K_command(gs[it_]);
-      std::cout << "it: " << it_ << std::endl;
-    } else {
-      std::cout << "it: " << it_ << std::endl;
-      set_x_command(xs[OCP_tiago_.get_horizon_length() - 1]);
-      set_K_command(gs[OCP_tiago_.get_horizon_length() - 1]);
     }
+    set_x_command(xs_[it_]);
   }
+
+  update_frequency_ = (rclcpp::Clock(RCL_ROS_TIME).now() - time)
+                          .to_chrono<std::chrono::microseconds>()
+                          .count();
+  std::cout << "Solving frequency: " << 1 / (diff_.count() * 1e-6)
+            << " Hz, Solving time : " << solving_time_ << " us "
+            << "Update frequency: " << update_frequency_ << std::endl;
 
   return controller_interface::return_type::OK;
 }
@@ -240,7 +253,7 @@ void CrocoddylController::read_state_from_hardware() {
     auto position_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
         [&joint_name](
-            const hardware_interface::LoanedStateInterface& interface) {
+            const hardware_interface::LoanedStateInterface &interface) {
           return interface.get_prefix_name() == joint_name &&
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_POSITION;
@@ -250,7 +263,7 @@ void CrocoddylController::read_state_from_hardware() {
     auto velocity_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
         [&joint_name](
-            const hardware_interface::LoanedStateInterface& interface) {
+            const hardware_interface::LoanedStateInterface &interface) {
           return interface.get_prefix_name() == joint_name &&
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_VELOCITY;
@@ -260,7 +273,7 @@ void CrocoddylController::read_state_from_hardware() {
     auto effort_state = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(),
         [&joint_name](
-            const hardware_interface::LoanedStateInterface& interface) {
+            const hardware_interface::LoanedStateInterface &interface) {
           return interface.get_prefix_name() == joint_name &&
                  interface.get_interface_name() ==
                      hardware_interface::HW_IF_EFFORT;
@@ -288,7 +301,7 @@ void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
     }
   }
 }
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
