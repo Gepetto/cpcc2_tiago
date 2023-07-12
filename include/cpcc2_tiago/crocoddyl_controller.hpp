@@ -81,12 +81,12 @@ class CrocoddylController : public controller_interface::ControllerInterface {
     Eigen::VectorXd effort;
   };
 
-    Model model_;
+  Model model_;
   tiago_OCP::OCP OCP_tiago_;
   rclcpp::Time prev_solve_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  int approx_solving_t_us_ = 5000;
+  int it_ = 0;
 
-  Eigen::Vector3d hand_target_ = Eigen::Vector3d(0.8, 0,
+  Eigen::Vector3d hand_target_ = Eigen::Vector3d(0.4, 0.4,
                                                  0.8);  // random target
 
   /// @brief Number of joints

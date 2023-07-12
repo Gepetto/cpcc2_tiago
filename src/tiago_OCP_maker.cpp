@@ -155,13 +155,16 @@ void OCP::logSolverData() {
   std::cout << "Total cost :" << solver_->get_cost() << std::endl;
   std::cout << "Gradient norm :" << solver_->stoppingCriteria() << std::endl;
   std::cout << "Us[0] :" << get_us().transpose() << std::endl;
-  std::cout << "k[0] :" << get_gains().transpose() << std::endl;
+  std::cout << "k[0] :" << get_gains()[0].transpose() << std::endl;
 }
 
 const Vector3d OCP::get_target() { return (target_); }
-const double OCP::get_time_step() { return (time_step_); }
+double OCP::get_time_step() { return (time_step_); }
+int OCP::get_horizon_length() { return (horizon_length_); }
 const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
-const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
-const MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
+const std::vector<VectorXd> OCP::get_xs() { return (solver_->get_xs()); }
+const std::vector<SolverDDP::MatrixXdRowMajor> OCP::get_gains() {
+  return (solver_->get_K());
+}
 
 };  // namespace tiago_OCP

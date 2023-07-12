@@ -86,10 +86,11 @@ class OCP {
   void logSolverData();
 
   const Vector3d get_target();
-  const double get_time_step();
+  double get_time_step();
+  int get_horizon_length();
   const VectorXd get_us();
-  const VectorXd get_xs();
-  const MatrixXd get_gains();
+  const std::vector<VectorXd> get_xs();
+  const std::vector<SolverDDP::MatrixXdRowMajor> get_gains();
 
   boost::shared_ptr<StateMultibody> get_state() { return state_; }
 };

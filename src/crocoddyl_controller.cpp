@@ -129,11 +129,13 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   std::cout << "Set target to: " << hand_target_ << std::endl;
 
   OCP_tiago_.setHorizonLength(20);
-  OCP_tiago_.setTimeStep(5e-2);
+  OCP_tiago_.setTimeStep(20e-2);
 
   OCP_tiago_.buildCostsModel();
   OCP_tiago_.buildDiffActModel();
   OCP_tiago_.buildSolver();
+
+  OCP_tiago_.printCosts();
 
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -193,9 +195,10 @@ controller_interface::return_type CrocoddylController::update(
   auto diff =
       (current_t - prev_solve_time_).to_chrono<std::chrono::microseconds>();
 
-  if (diff.count() + approx_solving_t_us_ > OCP_tiago_.get_time_step() * 1e6) {
-    std::cout << "Solver frequency: " << 1 / (diff.count() * 1e-6) << " Hz"
-              << std::endl;
+  if (diff.count() > OCP_tiago_.get_time_step() * 1e6) {
+    it_ = 1;
+    // std::cout << "Solver frequency: " << 1 / (diff.count() * 1e-6) << " Hz"
+    //           << std::endl;
 
     prev_solve_time_ = current_t;
 
@@ -207,12 +210,25 @@ controller_interface::return_type CrocoddylController::update(
     OCP_tiago_.solve(measuredX);
 
     Eigen::VectorXd us = OCP_tiago_.get_us();
-    Eigen::VectorXd xs = OCP_tiago_.get_xs();
-    Eigen::MatrixXd gs = OCP_tiago_.get_gains();
+    std::vector<VectorXd> xs = OCP_tiago_.get_xs();
+    std::vector<SolverDDP::MatrixXdRowMajor> gs = OCP_tiago_.get_gains();
 
     set_u_command(us);
-    set_x_command(xs);
-    set_K_command(gs);
+    set_x_command(xs[0]);
+    set_K_command(gs[0]);
+  } else {
+    auto xs = OCP_tiago_.get_xs();
+    auto gs = OCP_tiago_.get_gains();
+    if (it_ < OCP_tiago_.get_horizon_length() - 1) {
+      it_++;
+      set_x_command(xs[it_]);
+      set_K_command(gs[it_]);
+      std::cout << "it: " << it_ << std::endl;
+    } else {
+      std::cout << "it: " << it_ << std::endl;
+      set_x_command(xs[OCP_tiago_.get_horizon_length() - 1]);
+      set_K_command(gs[OCP_tiago_.get_horizon_length() - 1]);
+    }
   }
 
   return controller_interface::return_type::OK;

@@ -1,7 +1,7 @@
 cpcc2_tiago:
   joints: {
     type: string_array,
-    default_value: [arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint], #it's very important for them to be ordered !
+    default_value: [arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint], #it's very important for them to be ordered !
     description: "Name of the joints to control",
   }
   pveg_command_interfaces_name: {
