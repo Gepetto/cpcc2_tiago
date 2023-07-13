@@ -32,7 +32,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
- private:
+private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
@@ -63,7 +63,7 @@ class OCP {
 
   FrameIndex lh_id_;
 
- public:
+public:
   OCP();
   OCP(const Model &model);
 
@@ -74,12 +74,12 @@ class OCP {
   void createCallbacks(CallbackVerbose &callbacks);
   void solve(const VectorXd &measured_x);
 
-  void setTarget(Vector3d &target);
+  void setTarget(Vector3d target);
   void changeTarget(Vector3d target);
-  void setX0(VectorXd &x0);
+  void setX0(VectorXd x0);
   void setTimeStep(double time_step);
   void setHorizonLength(int horizon_length);
-  void setLhId(FrameIndex &lh_id);
+  void setLhId(FrameIndex lh_id);
 
   void printCosts() { std::cout << *costs_ << std::endl; };
   void printProblem() { std::cout << *problem_ << std::endl; };
@@ -89,11 +89,11 @@ class OCP {
   double get_time_step();
   int get_horizon_length();
   const VectorXd get_us();
-  const std::vector<VectorXd> get_xs();
-  const std::vector<SolverDDP::MatrixXdRowMajor> get_gains();
+  const VectorXd get_xs();
+  const Eigen::MatrixXd get_gains();
 
   boost::shared_ptr<StateMultibody> get_state() { return state_; }
 };
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP
 
 #endif

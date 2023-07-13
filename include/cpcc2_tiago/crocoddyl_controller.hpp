@@ -32,25 +32,25 @@ namespace cpcc2_tiago {
 /// @brief Effort Controller (Higher Level Controller) to set reference
 /// interfaces received from Chainable Controller
 class CrocoddylController : public controller_interface::ControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::return_type update(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -74,7 +74,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
+private:
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
@@ -84,24 +84,27 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Model model_;
   tiago_OCP::OCP OCP_tiago_;
 
+  int OCP_horizon_length_;
+  double OCP_time_step_;
+
   std::chrono::microseconds diff_;
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time start_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  rclcpp::Time end_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  double update_frequency_ = 0;
+  double update_frequency_ = 0.0;
   double solving_time_ = 0.0;
+  double interpolate_t_ = 0.0;
 
-  int it_ = 0;
-
-  Eigen::Vector3d hand_target_ = Eigen::Vector3d(0.4, 0.4,
-                                                 0.8);  // random target
+  Eigen::Vector3d hand_target_ = Eigen::Vector3d(0.6, -0.3, 1); // random target
 
   Eigen::VectorXd measuredX_;
 
   Eigen::VectorXd us_;
-  std::vector<VectorXd> xs_;
-  std::vector<SolverDDP::MatrixXdRowMajor> gs_;
+  Eigen::VectorXd xs_;
+  Eigen::VectorXd interpolated_xs_;
+  Eigen::MatrixXd gs_;
 
   /// @brief Number of joints
   int n_joints_;
@@ -123,6 +126,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// interface
   void read_state_from_hardware();
 
+  Eigen::VectorXd interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd u,
+                                 double t);
+
   /// @brief set the effort command
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired torque
@@ -130,5 +136,5 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   void set_x_command(Eigen::VectorXd command_x);
   void set_K_command(Eigen::MatrixXd comman_K);
 };
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 #endif

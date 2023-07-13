@@ -53,6 +53,15 @@ void CrocoddylController::build_model() {
   model_ = buildReducedModel(full_model, jointsToLockIDs, q_rand);
 }
 
+Eigen::VectorXd CrocoddylController::interpolate_xs(Eigen::VectorXd x0,
+                                                    Eigen::VectorXd u,
+                                                    double t) {
+  Eigen::VectorXd x = Eigen::VectorXd::Zero(2 * n_joints_);
+  x.head(n_joints_) =
+      x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * u * t * t;
+  x.tail(n_joints_) = x0.tail(n_joints_) + u * t;
+  return x;
+}
 void CrocoddylController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
 }
@@ -130,8 +139,10 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   std::cout << "Set target to: " << hand_target_ << std::endl;
 
-  OCP_tiago_.setHorizonLength(20);
-  OCP_tiago_.setTimeStep(5e-2);
+  OCP_horizon_length_ = 20;
+  OCP_time_step_ = 5e-2;
+  OCP_tiago_.setHorizonLength(OCP_horizon_length_);
+  OCP_tiago_.setTimeStep(OCP_time_step_);
 
   OCP_tiago_.buildCostsModel();
   OCP_tiago_.buildDiffActModel();
@@ -168,7 +179,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -191,8 +202,9 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time &time, const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/,
+                            const rclcpp::Duration & /*period*/) {
   // RCLCPP_INFO(
   //     get_node()->get_logger(),
   //     std::to_string(period.to_chrono<std::chrono::microseconds>().count())
@@ -207,10 +219,8 @@ controller_interface::return_type CrocoddylController::update(
   diff_ = (start_update_time_ - prev_solving_time_)
               .to_chrono<std::chrono::microseconds>();
 
-  if (diff_.count() + solving_time_ > OCP_tiago_.get_time_step() * 1e6) {
-    start_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
-
-    it_ = 1;
+  if ((diff_.count() + solving_time_) * 1e-6 > OCP_time_step_) {
+    start_solving_time_ = start_update_time_;
 
     read_state_from_hardware();
 
@@ -223,31 +233,36 @@ controller_interface::return_type CrocoddylController::update(
     gs_ = OCP_tiago_.get_gains();
 
     set_u_command(us_);
-    set_x_command(xs_[0]);
-    set_K_command(gs_[0]);
+    set_x_command(xs_);
+    set_K_command(gs_);
 
-    solving_time_ = (rclcpp::Clock(RCL_ROS_TIME).now() - start_solving_time_)
+    end_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+
+    solving_time_ = (end_solving_time_ - start_solving_time_)
                         .to_chrono<std::chrono::microseconds>()
                         .count();
-    std::cout << "Solving frequency: "
-              << 1 / ((start_solving_time_ - prev_solving_time_)
-                          .to_chrono<std::chrono::microseconds>()
-                          .count() *
-                      1e-6)
-              << " Hz, solving time: " << solving_time_ << "us "
-              << "Update frequency: " << update_frequency_ << " Hz"
-              << std::endl;
+
+    // std::cout << "Solving frequency: "
+    //           << 1 / ((start_solving_time_ - prev_solving_time_)
+    //                       .to_chrono<std::chrono::microseconds>()
+    //                       .count() *
+    //                   1e-6)
+    //           << " Hz, solving time: " << solving_time_ << "us "
+    //           << "Update frequency: " << update_frequency_ << " Hz"
+    //           << std::endl;
+
+    // std::cout << subdivision_time_ << std::endl;
 
     prev_solving_time_ = start_solving_time_;
 
   } else {
-    // std::cout << "it: " << it_ << std::endl;
-    xs_ = OCP_tiago_.get_xs();
-    gs_ = OCP_tiago_.get_gains();
-    if (it_ < OCP_tiago_.get_horizon_length() - 1) {
-      it_++;
-    }
-    set_x_command(xs_[it_]);
+
+    interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
+                         .to_chrono<std::chrono::microseconds>()
+                         .count() -
+                     solving_time_;
+    interpolated_xs_ = interpolate_xs(measuredX_, us_, interpolate_t_ * 1e-6);
+    set_x_command(interpolated_xs_);
   }
 
   return controller_interface::return_type::OK;
@@ -307,7 +322,7 @@ void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
     }
   }
 }
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

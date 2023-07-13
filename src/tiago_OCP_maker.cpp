@@ -9,7 +9,7 @@ OCP::OCP(const Model &model) {
   initOCPParms();
 }
 
-void OCP::setTarget(Vector3d &target) {
+void OCP::setTarget(Vector3d target) {
   target_ = target;
   lh_Mref_ = SE3(Matrix3d::Identity(), target_);
 }
@@ -21,9 +21,9 @@ void OCP::changeTarget(Vector3d target) {
       costs_->get_costs().at("lh_goal")->cost->get_residual())
       ->set_reference(lh_Mref_);
 }
-void OCP::setX0(VectorXd &x0) { x0_ = x0; }
+void OCP::setX0(VectorXd x0) { x0_ = x0; }
 void OCP::setTimeStep(double time_step) { time_step_ = time_step; }
-void OCP::setLhId(FrameIndex &lh_id) { lh_id_ = lh_id; }
+void OCP::setLhId(FrameIndex lh_id) { lh_id_ = lh_id; }
 void OCP::setHorizonLength(int horizon_length) {
   horizon_length_ = horizon_length;
 }
@@ -90,8 +90,8 @@ void OCP::buildCostsModel() {
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
 
   // Adding the regularization terms to the cost
-  costs_->addCost("xReg", x_reg_cost, 1e-3);  // 1e-3
-  costs_->addCost("uReg", u_reg_cost, 1e-4);  // 1e-4
+  costs_->addCost("xReg", x_reg_cost, 1e-3); // 1e-3
+  costs_->addCost("uReg", u_reg_cost, 1e-4); // 1e-4
 
   // Adding the state limits penalization
   Eigen::VectorXd x_lb(state_nq_ + state_nv_);
@@ -155,16 +155,14 @@ void OCP::logSolverData() {
   std::cout << "Total cost :" << solver_->get_cost() << std::endl;
   std::cout << "Gradient norm :" << solver_->stoppingCriteria() << std::endl;
   std::cout << "Us[0] :" << get_us().transpose() << std::endl;
-  std::cout << "k[0] :" << get_gains()[0].transpose() << std::endl;
+  std::cout << "k[0] :" << get_gains().transpose() << std::endl;
 }
 
 const Vector3d OCP::get_target() { return (target_); }
 double OCP::get_time_step() { return (time_step_); }
 int OCP::get_horizon_length() { return (horizon_length_); }
 const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
-const std::vector<VectorXd> OCP::get_xs() { return (solver_->get_xs()); }
-const std::vector<SolverDDP::MatrixXdRowMajor> OCP::get_gains() {
-  return (solver_->get_K());
-}
+const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
+const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP
