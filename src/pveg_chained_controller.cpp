@@ -38,12 +38,14 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  for (const auto &joint : params_.joints) {
+  for (auto joint : params_.joints) {
     command_interface_types_.push_back(joint + "/" +
                                        params_.pveg_command_interfaces_name);
+  }
 
-    for (auto s_inter_name : params_.state_interfaces_name) {
-      state_interface_types_.push_back(joint + "/" + s_inter_name);
+  for (auto state_inter_ : params_.state_interfaces_name) {
+    for (auto joint : params_.joints) {
+      state_interface_types_.push_back(joint + "/" + state_inter_);
     }
   }
 
@@ -151,7 +153,7 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
         params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY,
         &reference_interfaces_[2 * n_joints_ + i]));
   }
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       reference_interfaces.push_back(hardware_interface::CommandInterface(
           get_node()->get_name(),
@@ -209,6 +211,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
   for (int i = 0; i < n_joints_; ++i) {
     command_interfaces_[i].set_value(eff_command_[i]);
   }
+
   return true;
 }
 
@@ -219,16 +222,16 @@ void PvegChainedController::read_joints_commands() {
   double command_K;
 
   for (int i = 0; i < n_joints_; i++) {
-    command_u = reference_interfaces_[i]; // arm_i_joint/effort
+    command_u = reference_interfaces_[i];  // arm_i_joint/effort
     // check if NaN, if nan set to current state to avoid large jump in torque
     ricatti_command_.u_command[i] =
         (command_u == command_u) ? command_u : current_state_.effort[i];
 
-    command_q = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos
+    command_q = reference_interfaces_[n_joints_ + i];  // arm_i_joint/pos
     ricatti_command_.x_command[i] =
         (command_q == command_q) ? command_q : current_state_.position[i];
 
-    command_v = reference_interfaces_[2 * n_joints_ + i]; // arm_i_joint/vel
+    command_v = reference_interfaces_[2 * n_joints_ + i];  // arm_i_joint/vel
     ricatti_command_.x_command[n_joints_ + i] =
         (command_v == command_v) ? command_v : current_state_.velocity[i];
 
@@ -241,41 +244,11 @@ void PvegChainedController::read_joints_commands() {
 }
 
 void PvegChainedController::read_state_from_hardware() {
-  // Here we read the state of the robot directly from the hardware interface.
-  // We have access to their name so we can sort and find each one
-  // Even though we know the states order, this solution add a layer of
-  // robustness
   for (int i = 0; i < n_joints_; ++i) {
-    std::string joint_name = params_.joints[i];
-    auto position_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_POSITION;
-        });
-    current_state_.position[i] = position_state->get_value();
-
-    auto velocity_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_VELOCITY;
-        });
-    current_state_.velocity[i] = velocity_state->get_value();
-
-    auto effort_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_EFFORT;
-        });
-    current_state_.effort[i] = effort_state->get_value();
+    current_state_.effort[i] = state_interfaces_[i].get_value();
+    current_state_.position[i] = state_interfaces_[n_joints_ + i].get_value();
+    current_state_.velocity[i] =
+        state_interfaces_[2 * n_joints_ + i].get_value();
   }
 }
 
@@ -294,7 +267,7 @@ void PvegChainedController::set_effort_command(Eigen::VectorXd eff_command) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

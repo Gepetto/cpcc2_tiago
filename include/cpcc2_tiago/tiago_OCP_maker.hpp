@@ -32,22 +32,24 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
-private:
+ private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
 
   boost::shared_ptr<SolverFDDP> solver_;
   Model model_;
+  Data data_;
 
-  boost::shared_ptr<crocoddyl::StateMultibody> state_;
-  boost::shared_ptr<crocoddyl::ActuationModelFull> actuation_;
+  std::vector<VectorXd> warm_xs_;
+  std::vector<VectorXd> warm_us_;
+
+  boost::shared_ptr<StateMultibody> state_;
+  boost::shared_ptr<ActuationModelFull> actuation_;
   boost::shared_ptr<CostModelSum> costs_;
   boost::shared_ptr<ContactModelMultiple> contacts_;
 
   boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model_;
-
-  bool is_initialized_ = false;
 
   size_t horizon_length_;
   double time_step_;
@@ -63,16 +65,17 @@ private:
 
   FrameIndex lh_id_;
 
-public:
+ public:
   OCP();
-  OCP(const Model &model);
+  OCP(const Model model, const Data data);
 
   void buildCostsModel();
   void buildDiffActModel();
   void buildSolver();
 
   void createCallbacks(CallbackVerbose &callbacks);
-  void solve(const VectorXd &measured_x);
+
+  void solve(VectorXd measured_x);
 
   void setTarget(Vector3d target);
   void changeTarget(Vector3d target);
@@ -92,8 +95,12 @@ public:
   const VectorXd get_xs();
   const Eigen::MatrixXd get_gains();
 
-  boost::shared_ptr<StateMultibody> get_state() { return state_; }
+  StateMultibody get_state() { return *state_; }
+  ActuationModelFull get_actuation() { return *actuation_; }
+  boost::shared_ptr<CostModelSum> get_costs() { return costs_; }
+  boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
+  SolverFDDP get_solver() { return *solver_; }
 };
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP
 
 #endif

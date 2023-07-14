@@ -4,8 +4,9 @@ namespace tiago_OCP {
 
 OCP::OCP() {}
 
-OCP::OCP(const Model &model) {
+OCP::OCP(const Model model, const Data data) {
   model_ = model;
+  data_ = data;
   initOCPParms();
 }
 
@@ -90,8 +91,8 @@ void OCP::buildCostsModel() {
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
 
   // Adding the regularization terms to the cost
-  costs_->addCost("xReg", x_reg_cost, 1e-3); // 1e-3
-  costs_->addCost("uReg", u_reg_cost, 1e-4); // 1e-4
+  costs_->addCost("xReg", x_reg_cost, 1e-3);  // 1e-3
+  costs_->addCost("uReg", u_reg_cost, 1e-4);  // 1e-4
 
   // Adding the state limits penalization
   Eigen::VectorXd x_lb(state_nq_ + state_nv_);
@@ -99,7 +100,7 @@ void OCP::buildCostsModel() {
       state_->get_lb().tail(state_nv_);
   Eigen::VectorXd x_ub(state_nq_ + state_nv_);
   x_ub << state_->get_ub().segment(1, state_nv_),
-      state_->get_lb().tail(state_nv_);
+      state_->get_ub().tail(state_nv_);
 
   boost::shared_ptr<ActivationModelQuadraticBarrier> act_xbounds =
       boost::make_shared<ActivationModelQuadraticBarrier>(
@@ -144,18 +145,25 @@ void OCP::createCallbacks(CallbackVerbose &callbacks) {
   solver_->setCallbacks(shrd_callbacks);
 }
 
-void OCP::solve(const VectorXd &measured_x) {
+void OCP::solve(VectorXd measured_x) {
+  warm_xs_ = solver_->get_xs();
+  warm_xs_.erase(warm_xs_.begin());
+  warm_xs_[0] = measured_x;
+  warm_xs_.push_back(warm_xs_[warm_xs_.size() - 1]);
+
+  warm_us_ = solver_->get_us();
+  warm_us_.erase(warm_us_.begin());
+  warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
+
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(DEFAULT_VECTOR, DEFAULT_VECTOR, 1);
+  solver_->solve(warm_xs_, warm_us_, 1);
 }
 
 void OCP::logSolverData() {
-  std::cout << "Number of iterations :" << solver_->get_iter() << std::endl;
-  std::cout << "Total cost :" << solver_->get_cost() << std::endl;
-  std::cout << "Gradient norm :" << solver_->stoppingCriteria() << std::endl;
-  std::cout << "Us[0] :" << get_us().transpose() << std::endl;
-  std::cout << "k[0] :" << get_gains().transpose() << std::endl;
+  std::cout << "Total cost :" << solver_->get_cost()
+            << " Stopping criteria :" << solver_->stoppingCriteria()
+            << std::endl;
 }
 
 const Vector3d OCP::get_target() { return (target_); }
@@ -165,4 +173,4 @@ const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
 const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
 const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP

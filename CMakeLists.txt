@@ -58,6 +58,7 @@ add_library(
   SHARED
   src/crocoddyl_controller.cpp
   src/tiago_OCP_maker.cpp
+  src/model_builder.cpp
 
 )
 target_include_directories(

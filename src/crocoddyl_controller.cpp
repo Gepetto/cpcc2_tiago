@@ -2,57 +2,6 @@
 
 namespace cpcc2_tiago {
 
-void CrocoddylController::build_model() {
-  const std::string urdf_filename = std::string(
-      "/opt/openrobots/include/example-robot-data/robots/tiago_description/"
-      "robots/tiago.urdf");
-
-  // Load the urdf model
-  Model full_model;
-  pinocchio::urdf::buildModel(urdf_filename, full_model);
-
-  std::vector<std::string> actuatedJointNames = {"universe"};
-
-  actuatedJointNames.insert(actuatedJointNames.end(), params_.joints.begin(),
-                            params_.joints.end());
-
-  std::vector<std::string> allJointNames = full_model.names;
-
-  // Create a list of joints to lock
-  std::vector<std::string> jointsToLock;
-
-  // Copy all elements from allJointNames that are not in actuatedJointNames
-  // to jointsToLock
-
-  std::copy_if(allJointNames.begin(), allJointNames.end(),
-               std::back_inserter(jointsToLock),
-               [&actuatedJointNames](const std::string &s) {
-                 return std::find(actuatedJointNames.begin(),
-                                  actuatedJointNames.end(),
-                                  s) == actuatedJointNames.end();
-               });
-
-  for (auto s : actuatedJointNames) {
-    std::cout << s << std::endl;
-  }
-
-  std::vector<FrameIndex> jointsToLockIDs = {};
-
-  for (std::string jn : jointsToLock) {
-    if (full_model.existJointName(jn)) {
-      jointsToLockIDs.push_back(full_model.getJointId(jn));
-    } else {
-      std::cout << "Joint " << jn << " not found in the model" << std::endl;
-    }
-  };
-
-  // Random configuration for the reduced model
-
-  Eigen::VectorXd q_rand = randomConfiguration(full_model);
-
-  model_ = buildReducedModel(full_model, jointsToLockIDs, q_rand);
-}
-
 Eigen::VectorXd CrocoddylController::interpolate_xs(Eigen::VectorXd x0,
                                                     Eigen::VectorXd u,
                                                     double t) {
@@ -84,11 +33,9 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  for (const auto &joint : params_.joints) {
-    for (long unsigned int s_inter_id = 0;
-         s_inter_id < params_.state_interfaces_name.size(); s_inter_id++) {
-      state_interface_types_.push_back(
-          joint + "/" + params_.state_interfaces_name[s_inter_id]);
+  for (auto state_inter_ : params_.state_interfaces_name) {
+    for (auto joint : params_.joints) {
+      state_interface_types_.push_back(joint + "/" + state_inter_);
     }
   }
   n_joints_ = params_.joints.size();
@@ -125,19 +72,21 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  build_model();
+  model_ = model_builder::build_model(params_.joints);
 
-  OCP_tiago_ = tiago_OCP::OCP(model_);
+  data_ = Data(model_);
+
+  OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
   Eigen::VectorXd x0 = Eigen::VectorXd::Zero(model_.nq + model_.nv);
   OCP_tiago_.setX0(x0);
 
-  FrameIndex lh_id = model_.getJointId("hand_tool_joint");
+  FrameIndex lh_id = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id);
 
   OCP_tiago_.setTarget(hand_target_);
 
-  std::cout << "Set target to: " << hand_target_ << std::endl;
+  std::cout << "Set target to: " << hand_target_.transpose() << std::endl;
 
   OCP_horizon_length_ = 20;
   OCP_time_step_ = 5e-2;
@@ -179,7 +128,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -202,18 +151,14 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/,
-                            const rclcpp::Duration & /*period*/) {
-  // RCLCPP_INFO(
-  //     get_node()->get_logger(),
-  //     std::to_string(period.to_chrono<std::chrono::microseconds>().count())
-  //         .c_str());
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
                                .count() *
                            1e-6);
+
   prev_update_time_ = start_update_time_;
 
   diff_ = (start_update_time_ - prev_solving_time_)
@@ -242,27 +187,24 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
                         .to_chrono<std::chrono::microseconds>()
                         .count();
 
-    // std::cout << "Solving frequency: "
-    //           << 1 / ((start_solving_time_ - prev_solving_time_)
-    //                       .to_chrono<std::chrono::microseconds>()
-    //                       .count() *
-    //                   1e-6)
-    //           << " Hz, solving time: " << solving_time_ << "us "
-    //           << "Update frequency: " << update_frequency_ << " Hz"
-    //           << std::endl;
-
-    // std::cout << subdivision_time_ << std::endl;
+    std::cout << "Solving frequency: "
+              << 1 / ((start_solving_time_ - prev_solving_time_)
+                          .to_chrono<std::chrono::microseconds>()
+                          .count() *
+                      1e-6)
+              << " Hz, solving time: " << solving_time_ << "us "
+              << "Update frequency: " << update_frequency_ << " Hz"
+              << std::endl;
 
     prev_solving_time_ = start_solving_time_;
 
   } else {
-
-    interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
-                         .to_chrono<std::chrono::microseconds>()
-                         .count() -
-                     solving_time_;
-    interpolated_xs_ = interpolate_xs(measuredX_, us_, interpolate_t_ * 1e-6);
-    set_x_command(interpolated_xs_);
+    // interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
+    //                      .to_chrono<std::chrono::microseconds>()
+    //                      .count() -
+    //                  solving_time_;
+    // interpolated_xs_ = interpolate_xs(measuredX_, us_, interpolate_t_ *
+    // 1e-6); set_x_command(interpolated_xs_);
   }
 
   return controller_interface::return_type::OK;
@@ -270,36 +212,10 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
 void CrocoddylController::read_state_from_hardware() {
   for (int i = 0; i < n_joints_; ++i) {
-    std::string joint_name = params_.joints[i];
-    auto position_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_POSITION;
-        });
-    current_state_.position[i] = position_state->get_value();
-
-    auto velocity_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_VELOCITY;
-        });
-    current_state_.velocity[i] = velocity_state->get_value();
-
-    auto effort_state = std::find_if(
-        state_interfaces_.begin(), state_interfaces_.end(),
-        [&joint_name](
-            const hardware_interface::LoanedStateInterface &interface) {
-          return interface.get_prefix_name() == joint_name &&
-                 interface.get_interface_name() ==
-                     hardware_interface::HW_IF_EFFORT;
-        });
-    current_state_.effort[i] = effort_state->get_value();
+    current_state_.effort[i] = state_interfaces_[i].get_value();
+    current_state_.position[i] = state_interfaces_[n_joints_ + i].get_value();
+    current_state_.velocity[i] =
+        state_interfaces_[2 * n_joints_ + i].get_value();
   }
 }
 
@@ -322,7 +238,7 @@ void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
     }
   }
 }
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
