@@ -22,9 +22,10 @@ void OCP::changeTarget(Vector3d target) {
       costs_->get_costs().at("lh_goal")->cost->get_residual())
       ->set_reference(lh_Mref_);
 }
+
+void OCP::setLhId(FrameIndex lh_id) { lh_id_ = lh_id; }
 void OCP::setX0(VectorXd x0) { x0_ = x0; }
 void OCP::setTimeStep(double time_step) { time_step_ = time_step; }
-void OCP::setLhId(FrameIndex lh_id) { lh_id_ = lh_id; }
 void OCP::setHorizonLength(int horizon_length) {
   horizon_length_ = horizon_length;
 }

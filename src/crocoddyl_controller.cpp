@@ -72,10 +72,12 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  // Build the model from the urdf
   model_ = model_builder::build_model(params_.joints);
 
   data_ = Data(model_);
 
+  // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
   Eigen::VectorXd x0 = Eigen::VectorXd::Zero(model_.nq + model_.nv);

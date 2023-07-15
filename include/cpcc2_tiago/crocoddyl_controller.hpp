@@ -1,15 +1,6 @@
 #ifndef CROCODDYL_CONTROLLER_HPP
 #define CROCODDYL_CONTROLLER_HPP
 
-// Libraries
-#include <algorithm>
-#include <atomic>
-#include <memory>
-#include <string>
-#include <thread>
-#include <utility>
-#include <vector>
-
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
@@ -20,7 +11,6 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/logging.hpp"
-#include "rclcpp/qos.hpp"
 #include "rclcpp/subscription.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
