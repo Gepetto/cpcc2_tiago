@@ -11,6 +11,19 @@ Eigen::VectorXd CrocoddylController::interpolate_xs(Eigen::VectorXd x0,
   x.tail(n_joints_) = x0.tail(n_joints_) + u * t;
   return x;
 }
+
+void CrocoddylController::update_target_from_subscriber(
+    const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
+  if (msg->data.size() != 3) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "Target message has wrong size, should be 3");
+    return;
+  }
+  Vector3d new_hand_target;
+  new_hand_target << msg->data[0], msg->data[1], msg->data[2];
+  OCP_tiago_.changeTarget(new_hand_target);
+}
+
 void CrocoddylController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
 }
@@ -54,6 +67,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 }
 
 controller_interface::CallbackReturn CrocoddylController::on_init() {
+  RCLCPP_INFO(get_node()->get_logger(), "Initializing CrocoddylController.");
   try {
     declare_parameters();
   } catch (const std::exception &e) {
@@ -100,6 +114,12 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.buildSolver();
 
   OCP_tiago_.printCosts();
+
+  command_subscriber_ =
+      get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "~/target", 10,
+          std::bind(&CrocoddylController::update_target_from_subscriber, this,
+                    std::placeholders::_1));
 
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -154,7 +174,9 @@ CrocoddylController::state_interface_configuration() const {
 }
 
 controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
+    const rclcpp::Time & /*time*/
+    ,
+    const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
