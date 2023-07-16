@@ -3,12 +3,10 @@
 namespace cpcc2_tiago {
 
 Eigen::VectorXd CrocoddylController::interpolate_xs(Eigen::VectorXd x0,
-                                                    Eigen::VectorXd u,
+                                                    Eigen::VectorXd x1,
                                                     double t) {
   Eigen::VectorXd x = Eigen::VectorXd::Zero(2 * n_joints_);
-  x.head(n_joints_) =
-      x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * u * t * t;
-  x.tail(n_joints_) = x0.tail(n_joints_) + u * t;
+  x = x0 + (x1 - x0) * t / OCP_time_step_;
   return x;
 }
 
@@ -201,8 +199,8 @@ controller_interface::return_type CrocoddylController::update(
     xs_ = OCP_tiago_.get_xs();
     gs_ = OCP_tiago_.get_gains();
 
-    set_u_command(us_);
-    set_x_command(xs_);
+    set_u_command(us_[0]);
+    set_x_command(xs_[0]);
     set_K_command(gs_);
 
     end_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
@@ -211,24 +209,29 @@ controller_interface::return_type CrocoddylController::update(
                         .to_chrono<std::chrono::microseconds>()
                         .count();
 
-    std::cout << "Solving frequency: "
-              << 1 / ((start_solving_time_ - prev_solving_time_)
-                          .to_chrono<std::chrono::microseconds>()
-                          .count() *
-                      1e-6)
-              << " Hz, solving time: " << solving_time_ << "us "
-              << "Update frequency: " << update_frequency_ << " Hz"
-              << std::endl;
+    if ((end_solving_time_ - prev_log_time_).seconds() >= 0.5) {
+      // Log the current state
+      std::cout << "Solving frequency: "
+                << 1 / ((start_solving_time_ - prev_solving_time_)
+                            .to_chrono<std::chrono::microseconds>()
+                            .count() *
+                        1e-6)
+                << " Hz, solving time: " << solving_time_ << "us "
+                << "Update frequency: " << update_frequency_ << " Hz"
+                << std::endl;
+      // Update the last log time
+      prev_log_time_ = end_solving_time_;
+    }
 
     prev_solving_time_ = start_solving_time_;
 
   } else {
-    // interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
-    //                      .to_chrono<std::chrono::microseconds>()
-    //                      .count() -
-    //                  solving_time_;
-    // interpolated_xs_ = interpolate_xs(measuredX_, us_, interpolate_t_ *
-    // 1e-6); set_x_command(interpolated_xs_);
+    interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
+                         .to_chrono<std::chrono::microseconds>()
+                         .count() -
+                     solving_time_;
+    interpolated_xs_ = interpolate_xs(xs_[0], xs_[1], interpolate_t_ * 1e-6);
+    set_x_command(interpolated_xs_);
   }
 
   return controller_interface::return_type::OK;

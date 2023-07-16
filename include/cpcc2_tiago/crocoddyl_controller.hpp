@@ -92,6 +92,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   rclcpp::Time end_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  rclcpp::Time prev_log_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  double interpolate_t_ = 0.0;
   double update_frequency_ = 0.0;
   double solving_time_ = 0.0;
 
@@ -100,8 +102,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   Eigen::VectorXd measuredX_;
 
-  Eigen::VectorXd us_;
-  Eigen::VectorXd xs_;
+  std::vector<Eigen::VectorXd> us_;
+  std::vector<Eigen::VectorXd> xs_;
   Eigen::VectorXd interpolated_xs_;
   Eigen::MatrixXd gs_;
 
@@ -122,7 +124,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// interface
   void read_state_from_hardware();
 
-  Eigen::VectorXd interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd u,
+  Eigen::VectorXd interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
                                  double t);
 
   /// @brief set the effort command
