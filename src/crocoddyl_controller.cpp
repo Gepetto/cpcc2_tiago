@@ -50,6 +50,9 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   }
   n_joints_ = params_.joints.size();
 
+  enable_logging_ = params_.enable_logging;
+  logging_frequency_ = params_.logging_frequency;
+
   // same for the current state
   current_state_.position.resize(n_joints_);
   current_state_.velocity.resize(n_joints_);
@@ -97,7 +100,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   FrameIndex lh_id = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.90); // random target
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.90);  // random target
 
   OCP_tiago_.setTarget(hand_target);
 
@@ -130,12 +133,14 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.printCosts();
 
   std::map<std::string, int> columnNames{
-      {"us", n_joints_}, {"x", 2 * n_joints_} // name of column + their size
+      {"us", n_joints_}, {"x", 2 * n_joints_}  // name of column + their size
 
   };
+  if (enable_logging_) {
+    logger_ = logger_OCP::logger(params_.log_file_path, columnNames);
 
-  logger_ = logger_OCP::logger("/home/jgleyze/Desktop/logs/OCP_logger.csv",
-                               columnNames);
+    logger_.data_to_log_.reserve(columnNames.size());
+  }
 
   command_subscriber_ =
       get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
@@ -172,7 +177,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -195,10 +200,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/
-                            ,
-                            const rclcpp::Duration & /*period*/) {
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/
+    ,
+    const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -233,19 +238,15 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
                         .to_chrono<std::chrono::microseconds>()
                         .count();
 
-    if ((end_solving_time_ - prev_log_time_).seconds() >= 0.5) {
-      // Log the current state
-      std::cout << "Solving frequency: "
-                << 1 / ((start_solving_time_ - prev_solving_time_)
-                            .to_chrono<std::chrono::microseconds>()
-                            .count() *
-                        1e-6)
-                << " Hz, solving time: " << solving_time_ << "us "
-                << "Update frequency: " << update_frequency_ << " Hz"
-                << std::endl;
-      // Update the last log time
-      prev_log_time_ = end_solving_time_;
-    }
+    // Log the current state
+    std::cout << "Solving frequency: "
+              << 1 / ((start_solving_time_ - prev_solving_time_)
+                          .to_chrono<std::chrono::microseconds>()
+                          .count() *
+                      1e-6)
+              << " Hz, solving time: " << solving_time_ << "us "
+              << "Update frequency: " << update_frequency_ << " Hz"
+              << std::endl;
 
     prev_solving_time_ = start_solving_time_;
 
@@ -258,7 +259,19 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     set_x_command(interpolated_xs_);
   }
 
-  logger_.log(us_[0], xs_[0]);
+  if (enable_logging_) {
+    start_logging_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+    if ((start_logging_time_ - prev_log_time_)
+                .to_chrono<std::chrono::microseconds>()
+                .count() *
+            1e-6 >=
+        1 / logging_frequency_) {
+      logger_.data_to_log_ = {us_[0], xs_[0]};
+      logger_.log();  // log what is in data_to_log_
+      // Update the last log time
+      prev_log_time_ = start_logging_time_;
+    }
+  }
 
   return controller_interface::return_type::OK;
 }
@@ -291,7 +304,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
     }
   }
 }
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

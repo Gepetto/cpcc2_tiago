@@ -76,7 +76,6 @@ ament_target_dependencies(
   rclcpp
   rclcpp_lifecycle
   spdlog
-  Eigen3
   pinocchio
   crocoddyl
   ${THIS_PACKAGE_INCLUDE_DEPENDS}

@@ -29,3 +29,23 @@ cpcc2_tiago:
     default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     description: "motors K tau coefficient",
   }
+
+  enable_logging: {
+    type: bool,
+    default_value: true,
+    description: "Enable logging",
+  }
+
+  log_file_path: {
+    type: string,
+    default_value: "/home/julien/Desktop/logs/OCP_logger.csv",
+    description: "Path to the log file",
+  }
+
+  logging_frequency: {
+    type: double,
+    default_value: 100.0,
+    description: "Logging frequency",
+  }
+
+
