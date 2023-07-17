@@ -59,6 +59,7 @@ add_library(
   src/crocoddyl_controller.cpp
   src/tiago_OCP_maker.cpp
   src/model_builder.cpp
+  src/logger_OCP.cpp
 
 )
 target_include_directories(
@@ -74,6 +75,8 @@ ament_target_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  spdlog
+  Eigen3
   pinocchio
   crocoddyl
   ${THIS_PACKAGE_INCLUDE_DEPENDS}

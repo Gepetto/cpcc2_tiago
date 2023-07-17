@@ -42,11 +42,9 @@ void OCP::initOCPParms() {
   costs_ = boost::make_shared<CostModelSum>(state_, actuation_nu_);
 }
 
-void OCP::buildCostsModel() {
+void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
+                          Eigen::VectorXd w_hand, Eigen::VectorXd w_x) {
   // Hand position cost
-  VectorXd w_hand(6);
-
-  w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
 
   // Activation for the hand-placement cost
   boost::shared_ptr<ActivationModelWeightedQuad> activ_hand =
@@ -61,13 +59,7 @@ void OCP::buildCostsModel() {
       boost::make_shared<CostModelResidual>(state_, activ_hand,
                                             res_mod_frm_plmt);
   // Adding the cost for the left hand
-  costs_->addCost("lh_goal", lh_cost, 1e2);
-
-  // Adding state and control regularization terms
-  Eigen::VectorXd w_x(2 * state_nv_);
-  w_x << Eigen::VectorXd::Zero(3), Eigen::VectorXd::Constant(3, 10.0),
-      Eigen::VectorXd::Constant(state_nv_ - 6, 0.01),
-      Eigen::VectorXd::Constant(state_nv_, 10.0);
+  costs_->addCost("lh_goal", lh_cost, costs_weights["lh_goal_weight"]);
 
   boost::shared_ptr<ActivationModelWeightedQuad> act_xreg =
       boost::make_shared<ActivationModelWeightedQuad>(w_x.cwiseAbs2());
@@ -92,8 +84,10 @@ void OCP::buildCostsModel() {
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
 
   // Adding the regularization terms to the cost
-  costs_->addCost("xReg", x_reg_cost, 1e-3);  // 1e-3
-  costs_->addCost("uReg", u_reg_cost, 1e-4);  // 1e-4
+  costs_->addCost("xReg", x_reg_cost,
+                  costs_weights["xReg_weight"]); // 1e-3
+  costs_->addCost("uReg", u_reg_cost,
+                  costs_weights["uReg_weight"]); // 1e-4
 
   // Adding the state limits penalization
   Eigen::VectorXd x_lb(state_nq_ + state_nv_);
@@ -114,7 +108,7 @@ void OCP::buildCostsModel() {
       boost::make_shared<CostModelResidual>(state_, act_xbounds,
                                             res_mod_state_xbounds);
 
-  costs_->addCost("xBounds", x_bounds, 1);
+  costs_->addCost("xBounds", x_bounds, costs_weights["xBounds_weight"]);
 }
 
 void OCP::buildDiffActModel() {
@@ -174,4 +168,4 @@ const std::vector<VectorXd> OCP::get_us() { return (solver_->get_us()); }
 const std::vector<VectorXd> OCP::get_xs() { return (solver_->get_xs()); }
 const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP

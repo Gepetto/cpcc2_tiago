@@ -2,10 +2,9 @@
 
 namespace cpcc2_tiago {
 
-Eigen::VectorXd CrocoddylController::interpolate_xs(Eigen::VectorXd x0,
-                                                    Eigen::VectorXd x1,
-                                                    double t) {
-  Eigen::VectorXd x = Eigen::VectorXd::Zero(2 * n_joints_);
+VectorXd CrocoddylController::interpolate_xs(VectorXd x0, VectorXd x1,
+                                             double t) {
+  VectorXd x = VectorXd::Zero(2 * n_joints_);
   x = x0 + (x1 - x0) * t / OCP_time_step_;
   return x;
 }
@@ -92,26 +91,51 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
-  Eigen::VectorXd x0 = Eigen::VectorXd::Zero(model_.nq + model_.nv);
+  VectorXd x0 = VectorXd::Zero(model_.nq + model_.nv);
   OCP_tiago_.setX0(x0);
 
   FrameIndex lh_id = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id);
 
-  OCP_tiago_.setTarget(hand_target_);
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.90); // random target
 
-  std::cout << "Set target to: " << hand_target_.transpose() << std::endl;
+  OCP_tiago_.setTarget(hand_target);
+
+  std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
   OCP_horizon_length_ = 20;
   OCP_time_step_ = 5e-2;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
 
-  OCP_tiago_.buildCostsModel();
+  std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
+                                              {"xReg_weight", 1e-3},
+                                              {"uReg_weight", 1e-4},
+                                              {"xBounds_weight", 1}};
+
+  VectorXd w_hand(6);
+
+  w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
+
+  VectorXd w_x(2 * model_.nv);
+
+  w_x << VectorXd::Zero(3), VectorXd::Constant(3, 10.0),
+      VectorXd::Constant(model_.nv - 6, 0.01),
+      VectorXd::Constant(model_.nv, 10.0);
+
+  OCP_tiago_.buildCostsModel(costs_weights, w_hand, w_x);
   OCP_tiago_.buildDiffActModel();
   OCP_tiago_.buildSolver();
 
   OCP_tiago_.printCosts();
+
+  std::map<std::string, int> columnNames{
+      {"us", n_joints_}, {"x", 2 * n_joints_} // name of column + their size
+
+  };
+
+  logger_ = logger_OCP::logger("/home/jgleyze/Desktop/logs/OCP_logger.csv",
+                               columnNames);
 
   command_subscriber_ =
       get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
@@ -148,7 +172,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -171,10 +195,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/
-    ,
-    const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/
+                            ,
+                            const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -234,6 +258,8 @@ controller_interface::return_type CrocoddylController::update(
     set_x_command(interpolated_xs_);
   }
 
+  logger_.log(us_[0], xs_[0]);
+
   return controller_interface::return_type::OK;
 }
 
@@ -246,18 +272,18 @@ void CrocoddylController::read_state_from_hardware() {
   }
 }
 
-void CrocoddylController::set_u_command(Eigen::VectorXd command_u) {
+void CrocoddylController::set_u_command(VectorXd command_u) {
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command_u[i]);
   }
 }
-void CrocoddylController::set_x_command(Eigen::VectorXd command_x) {
+void CrocoddylController::set_x_command(VectorXd command_x) {
   for (int i = 0; i < 2 * n_joints_; i++) {
     command_interfaces_[n_joints_ + i].set_value(command_x[i]);
     command_interfaces_[2 * n_joints_ + i].set_value(command_x[n_joints_ + i]);
   }
 }
-void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
+void CrocoddylController::set_K_command(MatrixXd command_K) {
   for (int i = 0; i < n_joints_; ++i) {
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j].set_value(
@@ -265,7 +291,7 @@ void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
     }
   }
 }
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

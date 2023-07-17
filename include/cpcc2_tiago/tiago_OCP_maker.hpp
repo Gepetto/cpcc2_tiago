@@ -32,7 +32,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
- private:
+private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
@@ -65,11 +65,13 @@ class OCP {
 
   FrameIndex lh_id_;
 
- public:
+public:
   OCP();
   OCP(const Model model, const Data data);
 
-  void buildCostsModel();
+  void buildCostsModel(std::map<std::string, double> costs_weights,
+                       Eigen::VectorXd w_hand, Eigen::VectorXd w_x);
+
   void buildDiffActModel();
   void buildSolver();
 
@@ -101,6 +103,6 @@ class OCP {
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
   SolverFDDP get_solver() { return *solver_; }
 };
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP
 
 #endif
