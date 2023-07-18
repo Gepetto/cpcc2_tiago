@@ -25,25 +25,25 @@ namespace cpcc2_tiago {
 /// @brief Effort Controller (Higher Level Controller) to set reference
 /// interfaces received from Chainable Controller
 class CrocoddylController : public controller_interface::ControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::return_type update(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -67,11 +67,10 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
+private:
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
-    Eigen::VectorXd effort;
   };
 
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
@@ -82,6 +81,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   Model model_;
   Data data_;
+
+  FrameIndex lh_id_;
 
   tiago_OCP::OCP OCP_tiago_;
 
@@ -107,8 +108,16 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Eigen::VectorXd interpolated_xs_;
   Eigen::MatrixXd gs_;
 
-  /// @brief Number of joints
+  Eigen::Vector3d pos_error_;
+
+  Eigen::Vector3d end_effector_pos_;
+
+  int n_arm_joints_;
+  int n_pos_ctrld_joints_;
+  int n_vel_ctrld_joints_;
   int n_joints_;
+
+  std::vector<std::string> all_controlled_joint_names_;
 
   bool enable_logging_;
   logger_OCP::logger logger_;
@@ -138,5 +147,5 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   void set_x_command(Eigen::VectorXd command_x);
   void set_K_command(Eigen::MatrixXd comman_K);
 };
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 #endif

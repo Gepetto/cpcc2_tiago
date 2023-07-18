@@ -1,30 +1,35 @@
 cpcc2_tiago:
-  joints: {
+  arm_joints: {
     type: string_array,
     default_value: [arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint, arm_7_joint], #it's very important for them to be ordered !
-    description: "Name of the joints to control",
+    description: "Name of the arm joints to control",
   }
-  pveg_command_interfaces_name: {
-    type: string,
-    default_value : effort,
-    description: "Name of the interface to command",
+  vel_ctrld_joints: {
+    type: string_array,
+    default_value: [],
+    description: "Name of the joints to control in velocity",
+  }
+  pos_ctrld_joints: {
+    type: string_array,
+    default_value: [torso_lift_joint],
+    description: "Name of the joints to control in position",
   }
   state_interfaces_name: {
     type: string_array,
-    default_value : [effort, position, velocity],
+    default_value : [position, velocity],
     description: "Name of the state interface",
   }
-  motors_static_friction: {
+  arm_motors_static_friction: {
     type: double_array,
     default_value: [0, 0, 0, 0, 0, 0, 0],
     description: "motors static friction coefficient",
   }
-  motors_viscous_friction: {
+  arm_motors_viscous_friction: {
     type: double_array,
     default_value: [0, 0, 0, 0, 0, 0, 0],
     description: "motors viscous friction coefficient",
   }
-  motors_K_tau: {
+  arm_motors_K_tau: {
     type: double_array,
     default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     description: "motors K tau coefficient",
@@ -38,7 +43,7 @@ cpcc2_tiago:
 
   log_file_path: {
     type: string,
-    default_value: "/home/julien/Desktop/logs/OCP_logger.csv",
+    default_value: "/home/jgleyze/Desktop/logs/OCP_logger.csv",
     description: "Path to the log file",
   }
 

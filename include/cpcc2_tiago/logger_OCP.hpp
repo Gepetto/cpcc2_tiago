@@ -9,20 +9,20 @@
 
 namespace logger_OCP {
 class logger {
- public:
+public:
   logger(const std::string &filePath,
          const std::map<std::string, int> &columnNames);
-  logger(){};  // Default constructor
+  logger(){}; // Default constructor
 
   void log();
 
   std::vector<Eigen::VectorXd> data_to_log_;
 
- private:
+private:
   std::string header_;
   std::shared_ptr<spdlog::logger> logger_;
 
   void writeHeader(const std::map<std::string, int> &columnNames);
 };
-}  // namespace logger_OCP
-#endif  // LOGGER_OCP_HPP
+} // namespace logger_OCP
+#endif // LOGGER_OCP_HPP

@@ -36,7 +36,7 @@ find_package(generate_parameter_library REQUIRED)
 find_package(Boost REQUIRED)
 find_package(crocoddyl REQUIRED)
 find_package(pinocchio REQUIRED)
-find_package(eigenpy REQUIRED)
+find_package(Eigen3 REQUIRED)
 include_directories(${crocoddyl_INCLUDE_DIRS})
 include_directories(${pinocchio_INCLUDE_DIRS})
 
@@ -81,7 +81,6 @@ ament_target_dependencies(
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 target_link_libraries(crocoddyl_controller /opt/openrobots/lib/libpinocchio.so)
-
 
 pluginlib_export_plugin_description_file(controller_interface crocoddyl_controller.xml)
 
