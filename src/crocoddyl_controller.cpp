@@ -109,10 +109,6 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   data_ = Data(model_);
 
-  std::cout << "AAAAAAAAa" << std::endl;
-  for (int i = 0; i < n_joints_; i++) {
-    std::cout << model_.names[i] << std::endl;
-  }
   // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
