@@ -32,7 +32,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   }
   params_ = param_listener_->get_params();
 
-  if (params_.arm_joints.empty()) {
+  if (params_.joints.empty()) {
     RCLCPP_ERROR(get_node()->get_logger(), "'joints' parameter was empty");
     return controller_interface::CallbackReturn::ERROR;
   }
@@ -44,30 +44,12 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   }
 
   for (auto state_inter_ : params_.state_interfaces_name) {
-    for (auto arm_joint : params_.arm_joints) {
-      state_interface_types_.push_back(arm_joint + "/" + state_inter_);
-    }
-    for (auto vel_joint : params_.vel_ctrld_joints) {
-      state_interface_types_.push_back(vel_joint + "/" + state_inter_);
-    }
-    for (auto pos_joint : params_.pos_ctrld_joints) {
-      state_interface_types_.push_back(pos_joint + "/" + state_inter_);
+    for (auto joint : params_.joints) {
+      state_interface_types_.push_back(joint + "/" + state_inter_);
     }
   }
 
-  n_arm_joints_ = params_.arm_joints.size();
-  n_pos_ctrld_joints_ = params_.pos_ctrld_joints.size();
-  n_vel_ctrld_joints_ = params_.vel_ctrld_joints.size();
-
-  n_joints_ = n_arm_joints_ + n_vel_ctrld_joints_ + n_pos_ctrld_joints_;
-
-  all_controlled_joint_names_ = std::vector<std::string>(params_.arm_joints);
-  all_controlled_joint_names_.insert(all_controlled_joint_names_.end(),
-                                     params_.vel_ctrld_joints.begin(),
-                                     params_.vel_ctrld_joints.end());
-  all_controlled_joint_names_.insert(all_controlled_joint_names_.end(),
-                                     params_.pos_ctrld_joints.begin(),
-                                     params_.pos_ctrld_joints.end());
+  n_joints_ = params_.joints.size();
 
   enable_logging_ = params_.enable_logging;
   logging_frequency_ = params_.logging_frequency;
@@ -98,14 +80,14 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return ret;
   }
 
-  if (n_arm_joints_ == 0) {
+  if (n_joints_ == 0) {
     RCLCPP_ERROR_STREAM(get_node()->get_logger(),
                         "List of joint names is empty.");
     return controller_interface::CallbackReturn::ERROR;
   }
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(all_controlled_joint_names_);
+  model_ = model_builder::build_model(params_.joints);
 
   data_ = Data(model_);
 
@@ -118,7 +100,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.90);  // random target
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8); // random target
 
   OCP_tiago_.setTarget(hand_target);
 
@@ -151,7 +133,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.printCosts();
 
   std::map<std::string, int> columnNames{
-      {"error", 3}  // name of column + their size
+      {"error", 3} // name of column + their size
 
   };
   if (enable_logging_) {
@@ -179,41 +161,30 @@ CrocoddylController::command_interface_configuration() const {
       controller_interface::interface_configuration_type::INDIVIDUAL;
   // Claiming Command interface exported as reference interface by
   // PvegContrller
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back("pveg_chained_controller/" +
-                                              params_.arm_joints[i] + "/" +
+                                              params_.joints[i] + "/" +
                                               hardware_interface::HW_IF_EFFORT);
   }
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.arm_joints[i] + "/" +
+        "pveg_chained_controller/" + params_.joints[i] + "/" +
         hardware_interface::HW_IF_POSITION);
   }
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.arm_joints[i] + "/" +
+        "pveg_chained_controller/" + params_.joints[i] + "/" +
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_arm_joints_; i++) {  // all the gains
-    for (int j = 0; j < 2 * n_arm_joints_; j++) {
+  for (int i = 0; i < n_joints_; i++) { // all the gains
+    for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
-          "pveg_chained_controller/" + params_.arm_joints[i] + "/" + "gain" +
+          "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
           std::to_string(i).c_str() + "_" + std::to_string(j).c_str());
     }
   }
 
-  for (int i = 0; i < n_vel_ctrld_joints_; i++) {
-    command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.vel_ctrld_joints[i] + "/" +
-        hardware_interface::HW_IF_VELOCITY);
-  }
-
-  for (int i = 0; i < n_pos_ctrld_joints_; i++) {
-    command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.pos_ctrld_joints[i] + "/" +
-        hardware_interface::HW_IF_POSITION);
-  }
   return command_interfaces_config;
 }
 
@@ -230,10 +201,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/
-    ,
-    const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/
+                            ,
+                            const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -289,13 +260,12 @@ controller_interface::return_type CrocoddylController::update(
     set_x_command(interpolated_xs_);
   }
 
-  model_builder::updateReducedModel(
-      measuredX_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
+  model_builder::updateReducedModel(measuredX_, model_,
+                                    data_); // set the model pos to the measured
+                                            // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
+                          .translation(); // get the end
+                                          // effector pos
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -307,7 +277,7 @@ controller_interface::return_type CrocoddylController::update(
             1e-6 >=
         1 / logging_frequency_) {
       logger_.data_to_log_ = {pos_error_};
-      logger_.log();  // log what is in data_to_log_
+      logger_.log(); // log what is in data_to_log_
       // Update the last log time
       prev_log_time_ = start_logging_time_;
     }
@@ -324,26 +294,26 @@ void CrocoddylController::read_state_from_hardware() {
 }
 
 void CrocoddylController::set_u_command(VectorXd command_u) {
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command_u[i]);
   }
 }
 void CrocoddylController::set_x_command(VectorXd command_x) {
-  for (int i = 0; i < 2 * n_arm_joints_; i++) {
-    command_interfaces_[n_arm_joints_ + i].set_value(command_x[i]);
-    command_interfaces_[2 * n_arm_joints_ + i].set_value(
-        command_x[n_joints_ + i]);
+  for (int i = 0; i < 2 * n_joints_; i++) {
+    command_interfaces_[n_joints_ + i].set_value(command_x[i]);
+    command_interfaces_[2 * n_joints_ + i].set_value(command_x[n_joints_ + i]);
   }
 }
 void CrocoddylController::set_K_command(MatrixXd command_K) {
-  for (int i = 0; i < n_arm_joints_; ++i) {
-    for (int j = 0; j < 2 * n_arm_joints_; j++) {
-      command_interfaces_[3 * n_arm_joints_ + i * 2 * n_arm_joints_ + j]
-          .set_value(command_K(i, j));
+  for (int i = 0; i < n_joints_; ++i) {
+    for (int j = 0; j < 2 * n_joints_; j++) {
+      command_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j].set_value(
+          command_K(i, j));
     }
   }
 }
-}  // namespace cpcc2_tiago
+
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

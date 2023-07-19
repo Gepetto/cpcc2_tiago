@@ -105,13 +105,13 @@ private:
 
   Eigen::VectorXd measuredX_;
   Eigen::VectorXd eff_command_;
+  Eigen::VectorXd command_;
+  Eigen::VectorXd corrected_eff_command_;
 
   ricatti_command ricatti_command_;
 
   /// @brief Number of joints
-  int n_arm_joints_;
-  int n_pos_ctrld_joints_;
-  int n_vel_ctrld_joints_;
+
   int n_joints_;
 
   /// @brief Vector of Joint Names
@@ -139,7 +139,6 @@ private:
   std::vector<double> arm_motors_K_tau_;
 
   /// @brief placeholder for effort corrected for the motor's friction
-  std::vector<double> corrected_eff_command_;
 
   state current_state_;
   void read_joints_commands();
@@ -148,7 +147,10 @@ private:
 
   void correct_efforts_for_friction();
 
-  void set_effort_command(Eigen::VectorXd eff_command);
+  void compute_command_from_type(Eigen::VectorXd eff_command);
+
+  void set_command(Eigen::VectorXd command); // command is a mix between
+                                             // effort pos and vel
 };
 
 template <typename T> int sign(T val) { return (T(0) < val) - (val < T(0)); }

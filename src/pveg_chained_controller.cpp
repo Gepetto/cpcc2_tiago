@@ -14,7 +14,7 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   }
   params_ = param_listener_->get_params();
 
-  if (params_.arm_joints.empty()) {
+  if (params_.joints.empty()) {
     RCLCPP_ERROR(get_node()->get_logger(), "'joints' parameter was empty");
     return controller_interface::CallbackReturn::ERROR;
   }
@@ -33,30 +33,14 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  for (auto arm_joint : params_.arm_joints) {
-    command_interface_types_.push_back(arm_joint + "/" +
-                                       hardware_interface::HW_IF_EFFORT);
-  }
-
-  for (auto vel_joint : params_.vel_ctrld_joints) {
-    command_interface_types_.push_back(vel_joint + "/" +
-                                       hardware_interface::HW_IF_VELOCITY);
-  }
-
-  for (auto pos_joint : params_.pos_ctrld_joints) {
-    command_interface_types_.push_back(pos_joint + "/" +
-                                       hardware_interface::HW_IF_POSITION);
+  for (int i = 0; i < params_.joints.size(); i++) {
+    command_interface_types_.push_back(params_.joints[i] + "/" +
+                                       params_.pveg_joints_command_type[i]);
   }
 
   for (auto state_inter_ : params_.state_interfaces_name) {
-    for (auto arm_joint : params_.arm_joints) {
-      state_interface_types_.push_back(arm_joint + "/" + state_inter_);
-    }
-    for (auto vel_joint : params_.vel_ctrld_joints) {
-      state_interface_types_.push_back(vel_joint + "/" + state_inter_);
-    }
-    for (auto pos_joint : params_.pos_ctrld_joints) {
-      state_interface_types_.push_back(pos_joint + "/" + state_inter_);
+    for (auto joint : params_.joints) {
+      state_interface_types_.push_back(joint + "/" + state_inter_);
     }
   }
 
@@ -64,34 +48,29 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   arm_motors_static_friction_ = params_.arm_motors_static_friction;
   arm_motors_K_tau_ = params_.arm_motors_K_tau;
 
-  n_arm_joints_ = params_.arm_joints.size();
-  n_pos_ctrld_joints_ = params_.pos_ctrld_joints.size();
-  n_vel_ctrld_joints_ = params_.vel_ctrld_joints.size();
-
-  n_joints_ = n_arm_joints_ + n_vel_ctrld_joints_ + n_pos_ctrld_joints_;
+  n_joints_ = params_.joints.size();
 
   // Resize the vectors to have the correct size, and filling them with
   // quiet_NaN to avoid any misbehaving Reference _interfaces' size is 3 value
   // for each joint eff, vel, pos
-  //  n_arm_joints_ * 2  * n_arm_joints_ gains K the 2 comes from pos and vel
+  //  n_joints_ * 2  * n_joints_ gains K the 2 comes from pos and vel
 
-  reference_interfaces_.resize(3 * n_arm_joints_ +
-                                   n_arm_joints_ * 2 * n_arm_joints_ +
-                                   n_vel_ctrld_joints_ + n_pos_ctrld_joints_,
+  reference_interfaces_.resize(3 * n_joints_ + n_joints_ * 2 * n_joints_,
                                std::numeric_limits<double>::quiet_NaN());
 
   // same for the current state
-  current_state_.position.resize(n_arm_joints_);
-  current_state_.velocity.resize(n_arm_joints_);
+  current_state_.position.resize(n_joints_);
+  current_state_.velocity.resize(n_joints_);
 
-  ricatti_command_.u_command.resize(n_arm_joints_);
-  ricatti_command_.x_command.resize(2 * n_arm_joints_);
-  ricatti_command_.K_command.resize(n_arm_joints_, 2 * n_arm_joints_);
+  ricatti_command_.u_command.resize(n_joints_);
+  ricatti_command_.x_command.resize(2 * n_joints_);
+  ricatti_command_.K_command.resize(n_joints_, 2 * n_joints_);
 
-  measuredX_.resize(2 * n_arm_joints_);
+  measuredX_.resize(2 * n_joints_);
 
-  corrected_eff_command_.resize(n_arm_joints_,
-                                std::numeric_limits<double>::quiet_NaN());
+  corrected_eff_command_.resize(n_joints_);
+  command_.resize(n_joints_);
+
   RCLCPP_INFO(get_node()->get_logger(),
               "motors parameters loaded successfully");
 
@@ -152,50 +131,32 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
   // Exporting reference interfaces to Higher Level Controller
   // Note: Name (or prefix name) of the controller should be name of the
   // controller itself. In our case it's "cpcc2_tiago"
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     reference_interfaces.push_back(hardware_interface::CommandInterface(
         get_node()->get_name(),
-        params_.arm_joints[i] + "/" + hardware_interface::HW_IF_EFFORT,
+        params_.joints[i] + "/" + hardware_interface::HW_IF_EFFORT,
         &reference_interfaces_[i]));
   }
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     reference_interfaces.push_back(hardware_interface::CommandInterface(
         get_node()->get_name(),
-        params_.arm_joints[i] + "/" + hardware_interface::HW_IF_POSITION,
-        &reference_interfaces_[n_arm_joints_ + i]));
+        params_.joints[i] + "/" + hardware_interface::HW_IF_POSITION,
+        &reference_interfaces_[n_joints_ + i]));
   }
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     reference_interfaces.push_back(hardware_interface::CommandInterface(
         get_node()->get_name(),
-        params_.arm_joints[i] + "/" + hardware_interface::HW_IF_VELOCITY,
-        &reference_interfaces_[2 * n_arm_joints_ + i]));
+        params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY,
+        &reference_interfaces_[2 * n_joints_ + i]));
   }
-  for (int i = 0; i < n_arm_joints_; i++) {  // all the gains
-    for (int j = 0; j < 2 * n_arm_joints_; j++) {
+  for (int i = 0; i < n_joints_; i++) { // all the gains
+    for (int j = 0; j < 2 * n_joints_; j++) {
       reference_interfaces.push_back(hardware_interface::CommandInterface(
           get_node()->get_name(),
-          params_.arm_joints[i] + "/" + "gain" + std::to_string(i).c_str() +
-              "_" + std::to_string(j).c_str(),
-          &reference_interfaces_[3 * n_arm_joints_ + i * 2 * n_arm_joints_ +
-                                 j]));
+          params_.joints[i] + "/" + "gain" + std::to_string(i).c_str() + "_" +
+              std::to_string(j).c_str(),
+          &reference_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j]));
     }
-  }
-
-  for (int i = 0; i < n_vel_ctrld_joints_; i++) {
-    reference_interfaces.push_back(hardware_interface::CommandInterface(
-        get_node()->get_name(),
-        params_.vel_ctrld_joints[i] + "/" + hardware_interface::HW_IF_VELOCITY,
-        &reference_interfaces_[3 * n_arm_joints_ +
-                               2 * n_arm_joints_ * (n_arm_joints_ - 1) +
-                               (2 * n_arm_joints_ - 1) + i]));
-  }
-
-  for (int i = 0; i < n_pos_ctrld_joints_; i++) {
-    reference_interfaces.push_back(hardware_interface::CommandInterface(
-        get_node()->get_name(),
-        params_.pos_ctrld_joints[i] + "/" + hardware_interface::HW_IF_POSITION,
-        &reference_interfaces_[3 * n_arm_joints_ + 2 * n_arm_joints_ ^
-                               2 - 1 + n_vel_ctrld_joints_ + i]));
   }
 
   return reference_interfaces;
@@ -243,9 +204,9 @@ bool cpcc2_tiago::PvegChainedController::update() {
       ricatti_command_.u_command +
       ricatti_command_.K_command * (ricatti_command_.x_command - measuredX_);
 
-  for (int i = 0; i < n_arm_joints_; ++i) {
-    command_interfaces_[i].set_value(eff_command_[i]);
-  }
+  compute_command_from_type(eff_command_);
+
+  set_command(command_);
 
   return true;
 }
@@ -256,23 +217,21 @@ void PvegChainedController::read_joints_commands() {
   double command_v;
   double command_K;
 
-  for (int i = 0; i < n_arm_joints_; i++) {
-    command_u = reference_interfaces_[i];  // arm_i_joint/effort
+  for (int i = 0; i < n_joints_; i++) {
+    command_u = reference_interfaces_[i]; // arm_i_joint/effort
     // check if NaN, if nan set to current state to avoid large jump in torque
     ricatti_command_.u_command[i] = (command_u == command_u) ? command_u : 0;
 
-    command_q = reference_interfaces_[n_arm_joints_ + i];  // arm_i_joint/pos
+    command_q = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos
     ricatti_command_.x_command[i] =
         (command_q == command_q) ? command_q : current_state_.position[i];
 
-    command_v =
-        reference_interfaces_[2 * n_arm_joints_ + i];  // arm_i_joint/vel
-    ricatti_command_.x_command[n_arm_joints_ + i] =
+    command_v = reference_interfaces_[2 * n_joints_ + i]; // arm_i_joint/vel
+    ricatti_command_.x_command[n_joints_ + i] =
         (command_v == command_v) ? command_v : current_state_.velocity[i];
 
-    for (int j = 0; j < 2 * n_arm_joints_; j++) {
-      command_K =
-          reference_interfaces_[3 * n_arm_joints_ + i * 2 * n_arm_joints_ + j];
+    for (int j = 0; j < 2 * n_joints_; j++) {
+      command_K = reference_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j];
       ricatti_command_.K_command(i, j) =
           (command_K == command_K) ? command_K : 0;
     }
@@ -287,7 +246,7 @@ void PvegChainedController::read_state_from_hardware() {
 }
 
 void PvegChainedController::correct_efforts_for_friction() {
-  for (int i = 0; i < n_arm_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++) {
     corrected_eff_command_[i] =
         ricatti_command_.u_command[i] +
         arm_motors_static_friction_[i] * sign(current_state_.velocity[i]) +
@@ -295,13 +254,26 @@ void PvegChainedController::correct_efforts_for_friction() {
   }
 }
 
-void PvegChainedController::set_effort_command(Eigen::VectorXd eff_command) {
-  for (int i = 0; i < n_arm_joints_; i++) {
-    command_interfaces_[i].set_value(eff_command[i]);
+void PvegChainedController::compute_command_from_type(
+    Eigen::VectorXd eff_command) {
+  for (int i = 0; i < n_joints_; i++) {
+    if (params_.pveg_joints_command_type[i] == "effort") {
+      command_[i] = eff_command[i];
+    } else if (params_.pveg_joints_command_type[i] == "position") {
+      command_[i] = ricatti_command_.x_command[i];
+    } else if (params_.pveg_joints_command_type[i] == "velocity") {
+      command_[i] = ricatti_command_.x_command[n_joints_ + i];
+    }
   }
 }
 
-}  // namespace cpcc2_tiago
+void PvegChainedController::set_command(Eigen::VectorXd command) {
+  for (int i = 0; i < n_joints_; i++) {
+    command_interfaces_[i].set_value(command[i]);
+  }
+}
+
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
