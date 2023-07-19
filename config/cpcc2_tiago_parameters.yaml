@@ -11,7 +11,7 @@ cpcc2_tiago:
   }
   pos_ctrld_joints: {
     type: string_array,
-    default_value: [torso_lift_joint],
+    default_value: [],
     description: "Name of the joints to control in position",
   }
   state_interfaces_name: {
@@ -43,7 +43,7 @@ cpcc2_tiago:
 
   log_file_path: {
     type: string,
-    default_value: "/home/jgleyze/Desktop/logs/OCP_logger.csv",
+    default_value: "/home/julien/Desktop/logs/OCP_logger.csv",
     description: "Path to the log file",
   }
 
