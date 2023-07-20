@@ -10,6 +10,7 @@
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "pinocchio/algorithm/parallel/aba.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/subscription.hpp"
@@ -132,8 +133,10 @@ private:
   /// interface
   void read_state_from_hardware();
 
-  Eigen::VectorXd interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
-                                 double t);
+  Eigen::VectorXd lin_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
+                                     double t);
+  Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
+                                     double t);
 
   /// @brief set the effort command
   /// @param interface_command command_interface to send the command to

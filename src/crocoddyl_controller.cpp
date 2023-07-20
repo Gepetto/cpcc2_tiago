@@ -2,10 +2,24 @@
 
 namespace cpcc2_tiago {
 
-VectorXd CrocoddylController::interpolate_xs(VectorXd x0, VectorXd x1,
-                                             double t) {
+VectorXd CrocoddylController::lin_interpolate_xs(VectorXd x0, VectorXd x1,
+                                                 double t) {
   VectorXd x = VectorXd::Zero(2 * n_joints_);
   x = x0 + (x1 - x0) * t / OCP_time_step_;
+  return x;
+}
+
+VectorXd CrocoddylController::tau_interpolate_xs(VectorXd x0, VectorXd ddq,
+                                                 double t) {
+  VectorXd q(n_joints_);
+  VectorXd v(n_joints_);
+  VectorXd x(2 * n_joints_);
+
+  v = x0.tail(n_joints_) + ddq * t;
+  q = x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * ddq * t * t;
+
+  x << q, v;
+
   return x;
 }
 
@@ -80,12 +94,6 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return ret;
   }
 
-  if (n_joints_ == 0) {
-    RCLCPP_ERROR_STREAM(get_node()->get_logger(),
-                        "List of joint names is empty.");
-    return controller_interface::CallbackReturn::ERROR;
-  }
-
   // Build the model from the urdf
   model_ = model_builder::build_model(params_.joints);
 
@@ -106,8 +114,8 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
-  OCP_horizon_length_ = 20;
-  OCP_time_step_ = 5e-2;
+  OCP_horizon_length_ = params_.horizon_length;
+  OCP_time_step_ = 1 / params_.solver_frequency;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
 
@@ -223,6 +231,11 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
 
     measuredX_ << current_state_.position, current_state_.velocity;
 
+    model_builder::updateReducedModel(
+        measuredX_, model_,
+        data_); // set the model pos to the measured
+                // value to get the end effector pos
+
     OCP_tiago_.solve(measuredX_);
 
     us_ = OCP_tiago_.get_us();
@@ -252,17 +265,25 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     prev_solving_time_ = start_solving_time_;
 
   } else {
-    interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
-                         .to_chrono<std::chrono::microseconds>()
-                         .count() -
-                     solving_time_;
-    interpolated_xs_ = interpolate_xs(xs_[0], xs_[1], interpolate_t_ * 1e-6);
-    set_x_command(interpolated_xs_);
+
+    // aba(model_, data_, measuredX_.head(model_.nq),
+    // measuredX_.tail(model_.nv),
+    //     us_[0]); // compute the ddq
+
+    // std::cout << data_.ddq.transpose() << std::endl;
+
+    // interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
+    //                      .to_chrono<std::chrono::microseconds>()
+    //                      .count() -
+    //                  solving_time_;
+
+    // interpolated_xs_ =
+    //     // lin_interpolate_xs(xs_[0], xs_[1], interpolate_t_ * 1e-6);
+    //     tau_interpolate_xs(xs_[0], data_.ddq, interpolate_t_ * 1e-6);
+
+    // set_x_command(interpolated_xs_);
   }
 
-  model_builder::updateReducedModel(measuredX_, model_,
-                                    data_); // set the model pos to the measured
-                                            // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
                           .translation(); // get the end
                                           // effector pos

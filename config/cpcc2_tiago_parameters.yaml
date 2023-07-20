@@ -1,12 +1,12 @@
 cpcc2_tiago:
   joints: {
     type: string_array,
-    default_value: [arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint, arm_7_joint], #it's very important for them to be ordered !
+    default_value: [torso_lift_joint, arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint, arm_7_joint], #it's very important for them to be ordered !
     description: "Name of the arm joints to control",
   }
   pveg_joints_command_type: {
     type: string_array,
-    default_value: [effort, effort, effort, effort, effort, effort, effort],
+    default_value: [position, effort, effort, effort, effort, effort, effort, effort],
     description: "Type of command to send to the joints",
   }
   pveg_vel_ctrld_joints: {
@@ -38,6 +38,17 @@ cpcc2_tiago:
     type: double_array,
     default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0],
     description: "motors K tau coefficient",
+  }
+
+  horizon_length: {
+    type: int,
+    default_value: 20,
+    description: "Horizon of the problem",
+  }
+  solver_frequency: {
+    type: double,
+    default_value: 20.0,
+    description: "Solver frequency",
   }
 
   enable_logging: {

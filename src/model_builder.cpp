@@ -55,15 +55,15 @@ Model build_model(std::vector<std::string> joints) {
 }
 
 void updateReducedModel(const Eigen::Ref<const Eigen::VectorXd> &x,
-                        Model &rmodel, Data &rdata) {
+                        Model &model, Data &data) {
   /** x is the reduced posture, or contains the reduced posture in the first
    * elements */
-  pinocchio::forwardKinematics(rmodel, rdata, x.head(rmodel.nq));
-  pinocchio::updateFramePlacements(rmodel, rdata);
+  pinocchio::forwardKinematics(model, data, x.head(model.nq));
+  pinocchio::updateFramePlacements(model, data);
 }
 
-SE3 get_end_effector_SE3(Data &rdata, FrameIndex &end_effector_id) {
-  return rdata.oMf[end_effector_id];
+SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id) {
+  return data.oMf[end_effector_id];
 }
 
 } // namespace model_builder

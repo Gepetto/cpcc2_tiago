@@ -5,9 +5,18 @@
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
+#include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "pinocchio//spatial/fwd.hpp"
+#include "pinocchio/algorithm/joint-configuration.hpp"
+#include "pinocchio/algorithm/kinematics.hpp"
+#include "pinocchio/algorithm/model.hpp"
+#include "pinocchio/algorithm/parallel/aba.hpp"
+#include "pinocchio/fwd.hpp"
+#include "pinocchio/parsers/urdf.hpp"
+#include "pinocchio/spatial/se3-tpl.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/subscription.hpp"
@@ -92,10 +101,18 @@ protected:
   controller_interface::CallbackReturn read_parameters();
 
 private:
+  Model model_;
+  Data data_;
+
   struct ricatti_command {
     Eigen::VectorXd u_command;
     Eigen::VectorXd x_command;
     Eigen::MatrixXd K_command;
+
+    bool operator!=(const ricatti_command &other) const {
+      return u_command != other.u_command || x_command != other.x_command ||
+             K_command != other.K_command;
+    }
   };
 
   struct state {
@@ -103,12 +120,20 @@ private:
     Eigen::VectorXd velocity;
   };
 
+  rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  rclcpp::Time prev_command_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  double interpolate_t_ = 0.0;
+  double intergration_t_ = 0.0;
+
   Eigen::VectorXd measuredX_;
   Eigen::VectorXd eff_command_;
   Eigen::VectorXd command_;
   Eigen::VectorXd corrected_eff_command_;
 
+  Eigen::VectorXd interpolated_xs_;
+
   ricatti_command ricatti_command_;
+  ricatti_command last_ricatti_command_;
 
   /// @brief Number of joints
 
@@ -141,13 +166,24 @@ private:
   /// @brief placeholder for effort corrected for the motor's friction
 
   state current_state_;
-  void read_joints_commands();
 
-  void read_state_from_hardware();
+  void read_joints_commands(
+      ricatti_command &ric_com); // return true if new command is available
 
-  void correct_efforts_for_friction();
+  void read_state_from_hardware(state &curr_state);
 
-  void compute_command_from_type(Eigen::VectorXd eff_command);
+  Eigen::VectorXd correct_efforts_for_friction(state curr_state);
+
+  void adapt_command_to_type(Eigen::VectorXd eff_command, Eigen::VectorXd ddq,
+                             double t);
+
+  Eigen::VectorXd compute_ricatti_command(ricatti_command ric_cmd,
+                                          Eigen::VectorXd x);
+
+  Eigen::VectorXd lin_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
+                                     double t);
+  Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
+                                     double t);
 
   void set_command(Eigen::VectorXd command); // command is a mix between
                                              // effort pos and vel

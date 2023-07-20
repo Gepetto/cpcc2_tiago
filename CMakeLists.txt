@@ -107,6 +107,7 @@ add_library(
   pveg_chained_controller
   SHARED
   src/pveg_chained_controller.cpp
+  src/model_builder.cpp
 )
 target_include_directories(
   pveg_chained_controller
@@ -123,6 +124,7 @@ ament_target_dependencies(
   rclcpp_lifecycle
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+target_link_libraries(pveg_chained_controller /opt/openrobots/lib/libpinocchio.so)
 
 pluginlib_export_plugin_description_file(controller_interface pveg_chained_controller.xml)
 

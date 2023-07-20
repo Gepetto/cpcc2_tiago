@@ -21,8 +21,8 @@ using namespace pinocchio;
 namespace model_builder {
 Model build_model(std::vector<std::string> joints);
 void updateReducedModel(const Eigen::Ref<const Eigen::VectorXd> &x,
-                        Model &rmodel, Data &rdata);
-SE3 get_end_effector_SE3(Data &rdata, FrameIndex &end_effector_id);
+                        Model &model, Data &data);
+SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id);
 } // namespace model_builder
 
 #endif // MODEL_BUILDER_HPP
