@@ -232,16 +232,13 @@ bool cpcc2_tiago::PvegChainedController::update() {
     interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x_command, data_.ddq,
                                           interpolate_t_ * 1e-6);
 
-    std::cout << "ddq " << data_.ddq[0] << " xs0 " << interpolated_xs_[0]
-              << std::endl;
-
     interpolated_ricatti_command_.x_command = interpolated_xs_;
 
     // eff_command_ =
-    compute_ricatti_command(interpolated_ricatti_command_, measuredX_);
+    compute_ricatti_command(ricatti_command_, measuredX_);
   }
 
-  command_ = adapt_command_to_type(eff_command_, interpolated_ricatti_command_);
+  command_ = adapt_command_to_type(eff_command_, ricatti_command_);
 
   set_command(command_);
 
