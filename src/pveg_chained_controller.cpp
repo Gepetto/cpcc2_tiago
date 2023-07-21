@@ -2,14 +2,6 @@
 
 namespace cpcc2_tiago {
 
-Eigen::VectorXd PvegChainedController::lin_interpolate_xs(Eigen::VectorXd x0,
-                                                          Eigen::VectorXd x1,
-                                                          double t) {
-  Eigen::VectorXd x(2 * n_joints_);
-  x = x0 + (x1 - x0) * t * params_.solver_frequency;
-  return x;
-}
-
 Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
                                                           Eigen::VectorXd ddq,
                                                           double t) {

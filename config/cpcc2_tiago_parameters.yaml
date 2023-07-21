@@ -35,9 +35,10 @@ cpcc2_tiago:
     default_value: 20,
     description: "Horizon of the problem",
   }
-  solver_frequency: {
+  
+  time_step: {
     type: double,
-    default_value: 20.0,
+    default_value: 0.05,
     description: "Solver frequency",
   }
 

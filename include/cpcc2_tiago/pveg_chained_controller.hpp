@@ -179,8 +179,6 @@ class PvegChainedController
   Eigen::VectorXd compute_ricatti_command(ricatti_command ric_cmd,
                                           Eigen::VectorXd x);
 
-  Eigen::VectorXd lin_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
-                                     double t);
   Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
                                      double t);
 

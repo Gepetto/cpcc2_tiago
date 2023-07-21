@@ -100,7 +100,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
   OCP_horizon_length_ = params_.horizon_length;
-  OCP_time_step_ = 1 / params_.solver_frequency;
+  OCP_time_step_ = 1 / params_.time_step;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
 
