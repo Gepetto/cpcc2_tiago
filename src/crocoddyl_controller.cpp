@@ -2,27 +2,6 @@
 
 namespace cpcc2_tiago {
 
-VectorXd CrocoddylController::lin_interpolate_xs(VectorXd x0, VectorXd x1,
-                                                 double t) {
-  VectorXd x = VectorXd::Zero(2 * n_joints_);
-  x = x0 + (x1 - x0) * t / OCP_time_step_;
-  return x;
-}
-
-VectorXd CrocoddylController::tau_interpolate_xs(VectorXd x0, VectorXd ddq,
-                                                 double t) {
-  VectorXd q(n_joints_);
-  VectorXd v(n_joints_);
-  VectorXd x(2 * n_joints_);
-
-  v = x0.tail(n_joints_) + ddq * t;
-  q = x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * ddq * t * t;
-
-  x << q, v;
-
-  return x;
-}
-
 void CrocoddylController::update_target_from_subscriber(
     const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
   if (msg->data.size() != 3) {
@@ -94,6 +73,12 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return ret;
   }
 
+  if (n_joints_ == 0) {
+    RCLCPP_ERROR_STREAM(get_node()->get_logger(),
+                        "List of joint names is empty.");
+    return controller_interface::CallbackReturn::ERROR;
+  }
+
   // Build the model from the urdf
   model_ = model_builder::build_model(params_.joints);
 
@@ -108,7 +93,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8); // random target
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 1.3);  // random target
 
   OCP_tiago_.setTarget(hand_target);
 
@@ -141,7 +126,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.printCosts();
 
   std::map<std::string, int> columnNames{
-      {"error", 3} // name of column + their size
+      {"error", 3}  // name of column + their size
 
   };
   if (enable_logging_) {
@@ -185,7 +170,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -209,10 +194,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/
-                            ,
-                            const rclcpp::Duration & /*period*/) {
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/
+    ,
+    const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -230,11 +215,6 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     read_state_from_hardware();
 
     measuredX_ << current_state_.position, current_state_.velocity;
-
-    model_builder::updateReducedModel(
-        measuredX_, model_,
-        data_); // set the model pos to the measured
-                // value to get the end effector pos
 
     OCP_tiago_.solve(measuredX_);
 
@@ -263,30 +243,15 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
               << std::endl;
 
     prev_solving_time_ = start_solving_time_;
-
-  } else {
-
-    // aba(model_, data_, measuredX_.head(model_.nq),
-    // measuredX_.tail(model_.nv),
-    //     us_[0]); // compute the ddq
-
-    // std::cout << data_.ddq.transpose() << std::endl;
-
-    // interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_solving_time_)
-    //                      .to_chrono<std::chrono::microseconds>()
-    //                      .count() -
-    //                  solving_time_;
-
-    // interpolated_xs_ =
-    //     // lin_interpolate_xs(xs_[0], xs_[1], interpolate_t_ * 1e-6);
-    //     tau_interpolate_xs(xs_[0], data_.ddq, interpolate_t_ * 1e-6);
-
-    // set_x_command(interpolated_xs_);
   }
 
+  model_builder::updateReducedModel(
+      measuredX_, model_,
+      data_);  // set the model pos to the measured
+               // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation(); // get the end
-                                          // effector pos
+                          .translation();  // get the end
+                                           // effector pos
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -298,7 +263,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
             1e-6 >=
         1 / logging_frequency_) {
       logger_.data_to_log_ = {pos_error_};
-      logger_.log(); // log what is in data_to_log_
+      logger_.log();  // log what is in data_to_log_
       // Update the last log time
       prev_log_time_ = start_logging_time_;
     }
@@ -334,7 +299,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

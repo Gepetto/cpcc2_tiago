@@ -9,16 +9,6 @@ cpcc2_tiago:
     default_value: [position, effort, effort, effort, effort, effort, effort, effort],
     description: "Type of command to send to the joints",
   }
-  pveg_vel_ctrld_joints: {
-    type: string_array,
-    default_value: [],
-    description: "Name of the joints to control in velocity",
-  }
-  pveg_pos_ctrld_joints: {
-    type: string_array,
-    default_value: [torso_lift_joint],
-    description: "Name of the joints to control in position",
-  }
   state_interfaces_name: {
     type: string_array,
     default_value : [position, velocity],
@@ -53,7 +43,7 @@ cpcc2_tiago:
 
   enable_logging: {
     type: bool,
-    default_value: true,
+    default_value: false,
     description: "Enable logging",
   }
 
