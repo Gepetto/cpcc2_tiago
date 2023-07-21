@@ -33,22 +33,22 @@ namespace cpcc2_tiago {
 /// Controller
 class PvegChainedController
     : public controller_interface::ChainableControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
- protected:
+protected:
   /// @brief Export reference_interfaces_ to Higher level controller
   std::vector<hardware_interface::CommandInterface>
   on_export_reference_interfaces() override;
@@ -62,16 +62,17 @@ class PvegChainedController
   /// @brief Update Interfaces from subscribers. This should be using a realtime
   /// subscriber if CROCODDYL_PVEG_CHAINED mode is false
   /// @return Controller Interface Success
-  controller_interface::return_type update_reference_from_subscribers()
-      override;
+  controller_interface::return_type
+  update_reference_from_subscribers() override;
 
   /// @brief Update Interface from update of High Level Controller.
   /// CROCODDYL_PVEG_CHAINED Mode is true
   /// @param time Current Time
   /// @param period Current Period
   /// @return Controller Interface Success
-  controller_interface::return_type update_and_write_commands(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update_and_write_commands(const rclcpp::Time &time,
+                            const rclcpp::Duration &period) override;
 
   /// @brief Update method for both the methods for
   /// @return If Successful then True, else false
@@ -99,7 +100,7 @@ class PvegChainedController
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
+private:
   Model model_;
   Data data_;
 
@@ -122,7 +123,6 @@ class PvegChainedController
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_command_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   double interpolate_t_ = 0.0;
-  double intergration_t_ = 0.0;
 
   Eigen::VectorXd measuredX_;
   Eigen::VectorXd eff_command_;
@@ -132,6 +132,7 @@ class PvegChainedController
   Eigen::VectorXd interpolated_xs_;
 
   ricatti_command ricatti_command_;
+  ricatti_command interpolated_ricatti_command_;
   ricatti_command last_ricatti_command_;
 
   /// @brief Number of joints
@@ -167,14 +168,14 @@ class PvegChainedController
   state current_state_;
 
   void read_joints_commands(
-      ricatti_command &ric_com);  // return true if new command is available
+      ricatti_command &ric_com); // return true if new command is available
 
   void read_state_from_hardware(state &curr_state);
 
   Eigen::VectorXd correct_efforts_for_friction(state curr_state);
 
-  void adapt_command_to_type(Eigen::VectorXd eff_command, Eigen::VectorXd ddq,
-                             double t);
+  Eigen::VectorXd adapt_command_to_type(Eigen::VectorXd eff_command,
+                                        ricatti_command ric_cmd);
 
   Eigen::VectorXd compute_ricatti_command(ricatti_command ric_cmd,
                                           Eigen::VectorXd x);
@@ -182,15 +183,12 @@ class PvegChainedController
   Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
                                      double t);
 
-  void set_command(Eigen::VectorXd command);  // command is a mix between
-                                              // effort pos and vel
+  void set_command(Eigen::VectorXd command); // command is a mix between
+                                             // effort pos and vel
 };
 
-template <typename T>
-int sign(T val) {
-  return (T(0) < val) - (val < T(0));
-}
+template <typename T> int sign(T val) { return (T(0) < val) - (val < T(0)); }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #endif

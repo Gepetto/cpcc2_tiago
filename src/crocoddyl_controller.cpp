@@ -93,14 +93,14 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 1.3);  // random target
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8); // random target
 
   OCP_tiago_.setTarget(hand_target);
 
   std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
   OCP_horizon_length_ = params_.horizon_length;
-  OCP_time_step_ = 1 / params_.time_step;
+  OCP_time_step_ = params_.time_step;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
 
@@ -126,7 +126,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.printCosts();
 
   std::map<std::string, int> columnNames{
-      {"error", 3}  // name of column + their size
+      {"error", 3} // name of column + their size
 
   };
   if (enable_logging_) {
@@ -170,7 +170,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
@@ -194,10 +194,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/
-    ,
-    const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/
+                            ,
+                            const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -245,13 +245,12 @@ controller_interface::return_type CrocoddylController::update(
     prev_solving_time_ = start_solving_time_;
   }
 
-  model_builder::updateReducedModel(
-      measuredX_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
+  model_builder::updateReducedModel(measuredX_, model_,
+                                    data_); // set the model pos to the measured
+                                            // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
+                          .translation(); // get the end
+                                          // effector pos
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -263,7 +262,7 @@ controller_interface::return_type CrocoddylController::update(
             1e-6 >=
         1 / logging_frequency_) {
       logger_.data_to_log_ = {pos_error_};
-      logger_.log();  // log what is in data_to_log_
+      logger_.log(); // log what is in data_to_log_
       // Update the last log time
       prev_log_time_ = start_logging_time_;
     }
@@ -299,7 +298,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

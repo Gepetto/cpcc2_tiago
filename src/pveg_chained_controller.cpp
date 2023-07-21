@@ -2,21 +2,6 @@
 
 namespace cpcc2_tiago {
 
-Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
-                                                          Eigen::VectorXd ddq,
-                                                          double t) {
-  Eigen::VectorXd q(n_joints_);
-  Eigen::VectorXd v(n_joints_);
-  Eigen::VectorXd x(2 * n_joints_);
-
-  v = x0.tail(n_joints_) + ddq * t;
-  q = x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * ddq * t * t;
-
-  x << q, v;
-
-  return x;
-}
-
 // Create a parameter listener to listen to published ros2 param
 void PvegChainedController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
@@ -169,7 +154,7 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
         params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY,
         &reference_interfaces_[2 * n_joints_ + i]));
   }
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       reference_interfaces.push_back(hardware_interface::CommandInterface(
           get_node()->get_name(),
@@ -216,12 +201,12 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   measuredX_ << current_state_.position, current_state_.velocity;
 
-  model_builder::updateReducedModel(
-      measuredX_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
+  model_builder::updateReducedModel(measuredX_, model_,
+                                    data_); // set the model pos to the measured
+                                            // value to get the end effector pos
 
   last_ricatti_command_ = ricatti_command_;
+  interpolated_ricatti_command_ = ricatti_command_;
   read_joints_commands(ricatti_command_);
 
   // then gather the commands from the reference interface
@@ -238,25 +223,25 @@ bool cpcc2_tiago::PvegChainedController::update() {
   } else {
     // interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
-        eff_command_);  // compute the ddq
+        eff_command_); // compute ddq
 
     interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
                          .to_chrono<std::chrono::microseconds>()
                          .count();
 
-    interpolated_xs_ =
-        tau_interpolate_xs(measuredX_, data_.ddq, interpolate_t_ * 1e-6);
+    interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x_command, data_.ddq,
+                                          interpolate_t_ * 1e-6);
 
-    ricatti_command_.x_command = interpolated_xs_;
+    std::cout << "ddq " << data_.ddq[0] << " xs0 " << interpolated_xs_[0]
+              << std::endl;
 
-    eff_command_ = compute_ricatti_command(ricatti_command_, measuredX_);
+    interpolated_ricatti_command_.x_command = interpolated_xs_;
+
+    // eff_command_ =
+    compute_ricatti_command(interpolated_ricatti_command_, measuredX_);
   }
 
-  intergration_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
-                        .to_chrono<std::chrono::microseconds>()
-                        .count();
-
-  adapt_command_to_type(eff_command_, data_.ddq, intergration_t_);
+  command_ = adapt_command_to_type(eff_command_, interpolated_ricatti_command_);
 
   set_command(command_);
 
@@ -270,15 +255,15 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
   double command_K;
 
   for (int i = 0; i < n_joints_; i++) {
-    command_u = reference_interfaces_[i];  // arm_i_joint/effort
+    command_u = reference_interfaces_[i]; // arm_i_joint/effort
     // check if NaN, if nan set to current state to avoid large jump in torque
     ric_cmd.u_command[i] = (command_u == command_u) ? command_u : 0;
 
-    command_q = reference_interfaces_[n_joints_ + i];  // arm_i_joint/pos
+    command_q = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos
     ric_cmd.x_command[i] =
         (command_q == command_q) ? command_q : current_state_.position[i];
 
-    command_v = reference_interfaces_[2 * n_joints_ + i];  // arm_i_joint/vel
+    command_v = reference_interfaces_[2 * n_joints_ + i]; // arm_i_joint/vel
     ric_cmd.x_command[n_joints_ + i] =
         (command_v == command_v) ? command_v : current_state_.velocity[i];
 
@@ -296,8 +281,8 @@ void PvegChainedController::read_state_from_hardware(state &curr_state) {
   }
 }
 
-Eigen::VectorXd PvegChainedController::correct_efforts_for_friction(
-    state curr_state) {
+Eigen::VectorXd
+PvegChainedController::correct_efforts_for_friction(state curr_state) {
   Eigen::VectorXd corr_eff(n_joints_);
   for (int i = 0; i < n_joints_; i++) {
     corr_eff[i] =
@@ -308,8 +293,9 @@ Eigen::VectorXd PvegChainedController::correct_efforts_for_friction(
   return corr_eff;
 }
 
-Eigen::VectorXd PvegChainedController::compute_ricatti_command(
-    ricatti_command ric_cmd, Eigen::VectorXd x) {
+Eigen::VectorXd
+PvegChainedController::compute_ricatti_command(ricatti_command ric_cmd,
+                                               Eigen::VectorXd x) {
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.x_command - x);
 }
 
@@ -319,22 +305,39 @@ void PvegChainedController::set_command(Eigen::VectorXd command) {
   }
 }
 
-void PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
-                                                  Eigen::VectorXd ddq,
-                                                  double t) {
-  for (int i = 0; i < n_joints_; i++) {
-    if (params_.pveg_joints_command_type[i] == "effort") {
-      command_[i] = eff_command[i];
-    } else if (params_.pveg_joints_command_type[i] == "velocity") {
-      command_[i] = current_state_.velocity[i] + ddq[i] * t;
-    } else if (params_.pveg_joints_command_type[i] == "position") {
-      command_[i] = current_state_.position[i] +
-                    current_state_.velocity[i] * t + 0.5 * ddq[i] * t * t;
-    }
-  }
+Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
+                                                          Eigen::VectorXd ddq,
+                                                          double t) {
+  Eigen::VectorXd q(n_joints_);
+  Eigen::VectorXd v(n_joints_);
+  Eigen::VectorXd x(2 * n_joints_);
+
+  v = x0.tail(n_joints_) + ddq * t;
+  q = x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * ddq * t * t;
+
+  x << q, v;
+
+  return x;
 }
 
-}  // namespace cpcc2_tiago
+Eigen::VectorXd
+PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
+                                             ricatti_command ric_cmd) {
+
+  Eigen::VectorXd command(n_joints_);
+  for (int i = 0; i < n_joints_; i++) {
+    if (params_.pveg_joints_command_type[i] == "effort") {
+      command[i] = eff_command[i];
+    } else if (params_.pveg_joints_command_type[i] == "velocity") {
+      command[i] = ric_cmd.x_command[n_joints_ + i];
+    } else if (params_.pveg_joints_command_type[i] == "position") {
+      command[i] = ric_cmd.x_command[i];
+    }
+  }
+  return command;
+}
+
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
