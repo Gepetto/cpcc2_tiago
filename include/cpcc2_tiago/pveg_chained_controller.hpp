@@ -5,6 +5,7 @@
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
+#include "cpcc2_tiago/logger_OCP.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
@@ -166,6 +167,8 @@ private:
   /// @brief placeholder for effort corrected for the motor's friction
 
   state current_state_;
+
+  logger_OCP::logger logger_;
 
   void read_joints_commands(
       ricatti_command &ric_com); // return true if new command is available

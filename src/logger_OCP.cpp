@@ -2,14 +2,15 @@
 
 namespace logger_OCP {
 logger::logger(const std::string &filePath,
-               const std::map<std::string, int> &columnNames) {
+               const std::unordered_map<std::string, int> &columnNames) {
   logger_ = spdlog::basic_logger_mt("logger_OCP", filePath);
   logger_->set_pattern(
       "%v"); // Disable timestamp, thread id and logger name in the output
   writeHeader(columnNames);
 }
 
-void logger::writeHeader(const std::map<std::string, int> &columnNames) {
+void logger::writeHeader(
+    const std::unordered_map<std::string, int> &columnNames) {
   std::ostringstream oss;
   for (const auto &pair : columnNames) {
     const std::string &columnName = pair.first;

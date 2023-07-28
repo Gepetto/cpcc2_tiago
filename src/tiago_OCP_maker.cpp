@@ -141,18 +141,9 @@ void OCP::createCallbacks(CallbackVerbose &callbacks) {
 }
 
 void OCP::solve(VectorXd measured_x) {
-  warm_xs_ = solver_->get_xs();
-  warm_xs_.erase(warm_xs_.begin());
-  warm_xs_[0] = measured_x;
-  warm_xs_.push_back(warm_xs_[warm_xs_.size() - 1]);
-
-  warm_us_ = solver_->get_us();
-  warm_us_.erase(warm_us_.begin());
-  warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
-
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(warm_xs_, warm_us_, 1);
+  solver_->solve(solver_->get_xs(), solver_->get_us(), 1);
 }
 
 void OCP::logSolverData() {

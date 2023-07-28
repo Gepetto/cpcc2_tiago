@@ -125,11 +125,11 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   OCP_tiago_.printCosts();
 
-  std::map<std::string, int> columnNames{
+  std::unordered_map<std::string, int> columnNames{
       {"error", 3} // name of column + their size
 
   };
-  if (enable_logging_) {
+  if (true) {
     logger_ = logger_OCP::logger(params_.log_file_path, columnNames);
 
     logger_.data_to_log_.reserve(columnNames.size());
@@ -254,18 +254,21 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
-  if (enable_logging_) {
-    start_logging_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
-    if ((start_logging_time_ - prev_log_time_)
-                .to_chrono<std::chrono::microseconds>()
-                .count() *
-            1e-6 >=
-        1 / logging_frequency_) {
-      logger_.data_to_log_ = {pos_error_};
-      logger_.log(); // log what is in data_to_log_
-      // Update the last log time
-      prev_log_time_ = start_logging_time_;
-    }
+  if (true) {
+    // start_logging_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
+    // if ((start_logging_time_ - prev_log_time_)
+    //             .to_chrono<std::chrono::microseconds>()
+    //             .count() *
+    //         1e-6 >=
+    //     1 / logging_frequency_) {
+    //   logger_.data_to_log_ = {pos_error_};
+    //   logger_.log(); // log what is in data_to_log_
+    //   // Update the last log time
+    //   prev_log_time_ = start_logging_time_;
+    // }
+
+    logger_.data_to_log_ = {pos_error_};
+    logger_.log(); // log what is in data_to_log_
   }
 
   return controller_interface::return_type::OK;

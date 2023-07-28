@@ -98,6 +98,17 @@ cpcc2_tiago::PvegChainedController::on_init() {
 
   data_ = Data(model_);
 
+  std::unordered_map<std::string, int> columnNames{{"q", model_.nq},
+                                                   {"v", model_.nv},
+                                                   {"command", n_joints_},
+                                                   {"ddq", model_.nv}
+
+  };
+
+  // logger_ = logger_OCP::logger(params_.log_file_path, columnNames);
+
+  // logger_.data_to_log_.reserve(columnNames.size());
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -201,21 +212,17 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   measuredX_ << current_state_.position, current_state_.velocity;
 
-  model_builder::updateReducedModel(measuredX_, model_,
-                                    data_); // set the model pos to the measured
-                                            // value to get the end effector pos
+  model_builder::updateReducedModel(measuredX_, model_, data_);
 
   last_ricatti_command_ = ricatti_command_;
-  interpolated_ricatti_command_ = ricatti_command_;
+
   read_joints_commands(ricatti_command_);
+  interpolated_ricatti_command_ = ricatti_command_;
 
   // then gather the commands from the reference interface
   if (last_ricatti_command_ != ricatti_command_) {
     prev_command_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
     // if the commands have changed we need to recompute the ricatti command
-
-    // correct for the actuators' friction
-    // correct_efforts_for_friction();
 
     // compute the ricatti command
     eff_command_ = compute_ricatti_command(ricatti_command_, measuredX_);
@@ -224,6 +231,11 @@ bool cpcc2_tiago::PvegChainedController::update() {
     // interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
         eff_command_); // compute ddq
+
+    // logger_.data_to_log_ = {measuredX_.head(model_.nq),
+    //                         measuredX_.tail(model_.nv), eff_command_,
+    //                         data_.ddq};
+    // logger_.log(); // log what is in data_to_log_
 
     interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
                          .to_chrono<std::chrono::microseconds>()
@@ -234,11 +246,10 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
     interpolated_ricatti_command_.x_command = interpolated_xs_;
 
-    // eff_command_ =
-    compute_ricatti_command(ricatti_command_, measuredX_);
+    compute_ricatti_command(interpolated_ricatti_command_, measuredX_);
   }
 
-  command_ = adapt_command_to_type(eff_command_, ricatti_command_);
+  command_ = adapt_command_to_type(eff_command_, interpolated_ricatti_command_);
 
   set_command(command_);
 
@@ -305,12 +316,12 @@ void PvegChainedController::set_command(Eigen::VectorXd command) {
 Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
                                                           Eigen::VectorXd ddq,
                                                           double t) {
-  Eigen::VectorXd q(n_joints_);
-  Eigen::VectorXd v(n_joints_);
-  Eigen::VectorXd x(2 * n_joints_);
+  Eigen::VectorXd q(model_.nq);
+  Eigen::VectorXd v(model_.nv);
+  Eigen::VectorXd x(model_.nq + model_.nv);
 
-  v = x0.tail(n_joints_) + ddq * t;
-  q = x0.head(n_joints_) + x0.tail(n_joints_) * t + 0.5 * ddq * t * t;
+  v = x0.tail(model_.nv) + ddq * t;
+  q = x0.head(model_.nq) + x0.tail(model_.nv) * t + 0.5 * ddq * t * t;
 
   x << q, v;
 

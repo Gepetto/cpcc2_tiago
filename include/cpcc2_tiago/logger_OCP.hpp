@@ -11,7 +11,7 @@ namespace logger_OCP {
 class logger {
 public:
   logger(const std::string &filePath,
-         const std::map<std::string, int> &columnNames);
+         const std::unordered_map<std::string, int> &columnNames);
   logger(){}; // Default constructor
 
   void log();
@@ -22,7 +22,7 @@ private:
   std::string header_;
   std::shared_ptr<spdlog::logger> logger_;
 
-  void writeHeader(const std::map<std::string, int> &columnNames);
+  void writeHeader(const std::unordered_map<std::string, int> &columnNames);
 };
 } // namespace logger_OCP
 #endif // LOGGER_OCP_HPP
