@@ -155,8 +155,8 @@ void OCP::logSolverData() {
 const Vector3d OCP::get_target() { return (target_); }
 double OCP::get_time_step() { return (time_step_); }
 int OCP::get_horizon_length() { return (horizon_length_); }
-const std::vector<VectorXd> OCP::get_us() { return (solver_->get_us()); }
-const std::vector<VectorXd> OCP::get_xs() { return (solver_->get_xs()); }
+const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
+const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
 const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
 }; // namespace tiago_OCP

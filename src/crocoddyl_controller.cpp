@@ -2,6 +2,66 @@
 
 namespace cpcc2_tiago {
 
+void CrocoddylController::init_shared_memory() {
+
+  joints_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "joints_shm",
+      boost::interprocess::read_write);
+
+  joints_region_ = boost::interprocess::mapped_region(
+      joints_shm_, boost::interprocess::read_write);
+
+  joints_smh_ptr_ =
+      static_cast<std::vector<std::string> *>(joints_region_.get_address());
+
+  x_meas_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "x_meas_shm",
+      boost::interprocess::read_write);
+
+  x_meas_region_ = boost::interprocess::mapped_region(
+      x_meas_shm_, boost::interprocess::read_write);
+
+  x_meas_smh_ptr_ =
+      static_cast<Eigen::VectorXd *>(x_meas_region_.get_address());
+
+  us_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "us_shm",
+      boost::interprocess::read_write);
+
+  us_region_ = boost::interprocess::mapped_region(
+      us_shm_, boost::interprocess::read_write);
+
+  us_smh_ptr_ = static_cast<Eigen::VectorXd *>(us_region_.get_address());
+
+  xs_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "xs_shm",
+      boost::interprocess::read_write);
+
+  xs_region_ = boost::interprocess::mapped_region(
+      xs_shm_, boost::interprocess::read_write);
+
+  xs_smh_ptr_ = static_cast<Eigen::VectorXd *>(xs_region_.get_address());
+
+  Ks_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "K_shm",
+      boost::interprocess::read_write);
+
+  Ks_region_ = boost::interprocess::mapped_region(
+      Ks_shm_, boost::interprocess::read_write);
+
+  Ks_smh_ptr_ = static_cast<Eigen::MatrixXd *>(Ks_region_.get_address());
+
+  target_shm_ = boost::interprocess::shared_memory_object(
+      boost::interprocess::open_or_create, "target_shm",
+      boost::interprocess::read_write);
+
+  target_region_ = boost::interprocess::mapped_region(
+      target_shm_, boost::interprocess::read_write);
+
+  target_smh_ptr_ =
+      static_cast<Eigen::Vector3d *>(target_region_.get_address());
+}
+
 void CrocoddylController::update_target_from_subscriber(
     const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
   if (msg->data.size() != 3) {
@@ -11,6 +71,7 @@ void CrocoddylController::update_target_from_subscriber(
   }
   Vector3d new_hand_target;
   new_hand_target << msg->data[0], msg->data[1], msg->data[2];
+  *target_smh_ptr_ = new_hand_target;
   OCP_tiago_.changeTarget(new_hand_target);
 }
 
@@ -43,6 +104,9 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   }
 
   n_joints_ = params_.joints.size();
+  joints_names_.reserve(n_joints_);
+
+  joints_names_ = params_.joints;
 
   enable_logging_ = params_.enable_logging;
   logging_frequency_ = params_.logging_frequency;
@@ -51,7 +115,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   current_state_.position.resize(n_joints_);
   current_state_.velocity.resize(n_joints_);
 
-  measuredX_.resize(2 * n_joints_);
+  x_meas_.resize(2 * n_joints_);
 
   RCLCPP_INFO(get_node()->get_logger(),
               "motors parameters loaded successfully");
@@ -61,6 +125,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 
 controller_interface::CallbackReturn CrocoddylController::on_init() {
   RCLCPP_INFO(get_node()->get_logger(), "Initializing CrocoddylController.");
+
   try {
     declare_parameters();
   } catch (const std::exception &e) {
@@ -79,8 +144,14 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  init_shared_memory();
+
+  // mutex_.lock();
+  //*joints_smh_ptr_ = joints_names_;
+  //  mutex_.unlock();
+
   // Build the model from the urdf
-  model_ = model_builder::build_model(params_.joints);
+  model_ = model_builder::build_model(joints_names_);
 
   data_ = Data(model_);
 
@@ -129,7 +200,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
       {"error", 3} // name of column + their size
 
   };
-  if (true) {
+  if (false) {
     logger_ = logger_OCP::logger(params_.log_file_path, columnNames);
 
     logger_.data_to_log_.reserve(columnNames.size());
@@ -156,24 +227,24 @@ CrocoddylController::command_interface_configuration() const {
   // PvegContrller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back("pveg_chained_controller/" +
-                                              params_.joints[i] + "/" +
+                                              joints_names_[i] + "/" +
                                               hardware_interface::HW_IF_EFFORT);
   }
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.joints[i] + "/" +
+        "pveg_chained_controller/" + joints_names_[i] + "/" +
         hardware_interface::HW_IF_POSITION);
   }
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
-        "pveg_chained_controller/" + params_.joints[i] + "/" +
+        "pveg_chained_controller/" + joints_names_[i] + "/" +
         hardware_interface::HW_IF_VELOCITY);
   }
 
   for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
-          "pveg_chained_controller/" + params_.joints[i] + "/" + "gain" +
+          "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
           std::to_string(i).c_str() + "_" + std::to_string(j).c_str());
     }
   }
@@ -214,17 +285,17 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
 
     read_state_from_hardware();
 
-    measuredX_ << current_state_.position, current_state_.velocity;
+    x_meas_ << current_state_.position, current_state_.velocity;
 
-    OCP_tiago_.solve(measuredX_);
+    OCP_tiago_.solve(x_meas_);
 
     us_ = OCP_tiago_.get_us();
     xs_ = OCP_tiago_.get_xs();
-    gs_ = OCP_tiago_.get_gains();
+    Ks_ = OCP_tiago_.get_gains();
 
-    set_u_command(us_[0]);
-    set_x_command(xs_[0]);
-    set_K_command(gs_);
+    set_u_command(us_);
+    set_x_command(xs_);
+    set_K_command(Ks_);
 
     end_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
@@ -245,7 +316,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     prev_solving_time_ = start_solving_time_;
   }
 
-  model_builder::updateReducedModel(measuredX_, model_,
+  model_builder::updateReducedModel(x_meas_, model_,
                                     data_); // set the model pos to the measured
                                             // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
@@ -254,7 +325,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
-  if (true) {
+  if (false) {
     // start_logging_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
     // if ((start_logging_time_ - prev_log_time_)
     //             .to_chrono<std::chrono::microseconds>()

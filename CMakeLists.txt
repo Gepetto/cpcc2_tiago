@@ -60,6 +60,7 @@ add_library(
   src/tiago_OCP_maker.cpp
   src/model_builder.cpp
   src/logger_OCP.cpp
+  ##include/cpcc2_tiago/model_builder.hpp
 
 )
 target_include_directories(
@@ -101,6 +102,20 @@ ament_export_include_directories(
 ament_export_libraries(
   crocoddyl_controller
 )
+
+## parallel_croc_solver
+
+include_directories(include)
+
+add_executable(parallel_croc_solver src/parallel_croc_solver.cpp)
+
+install(
+  TARGETS
+  parallel_croc_solver
+  DESTINATION share/${PROJECT_NAME}/bin
+)
+
+target_link_libraries(parallel_croc_solver crocoddyl_controller)
 
 ## pveg_chained_controller
 add_library(

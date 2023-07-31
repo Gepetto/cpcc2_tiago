@@ -1,11 +1,17 @@
 #ifndef CROCODDYL_CONTROLLER_HPP
 #define CROCODDYL_CONTROLLER_HPP
 
+#include <boost/interprocess/allocators/allocator.hpp>
+#include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
 #include "cpcc2_tiago/logger_OCP.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
+#include "cpcc2_tiago/shared_mutex.hpp"
 #include "cpcc2_tiago/tiago_OCP_maker.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
@@ -74,11 +80,31 @@ private:
     Eigen::VectorXd velocity;
   };
 
+  SharedMutex mutex_;
+
+  // the solver run in another process, we used shared memory to communicate
+
+  boost::interprocess::shared_memory_object joints_shm_;
+  boost::interprocess::mapped_region joints_region_;
+  std::vector<std::string> *joints_smh_ptr_;
+
+  boost::interprocess::shared_memory_object x_meas_shm_;
+  boost::interprocess::mapped_region x_meas_region_;
+
+  boost::interprocess::shared_memory_object us_shm_;
+  boost::interprocess::mapped_region us_region_;
+
+  boost::interprocess::shared_memory_object xs_shm_;
+  boost::interprocess::mapped_region xs_region_;
+
+  boost::interprocess::shared_memory_object Ks_shm_;
+  boost::interprocess::mapped_region Ks_region_;
+
+  boost::interprocess::shared_memory_object target_shm_;
+  boost::interprocess::mapped_region target_region_;
+
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       target_subscriber_;
-
-  void update_target_from_subscriber(
-      const std_msgs::msg::Float64MultiArray::SharedPtr msg);
 
   Model model_;
   Data data_;
@@ -103,18 +129,26 @@ private:
   double update_frequency_ = 0.0;
   double solving_time_ = 0.0;
 
-  Eigen::VectorXd measuredX_;
+  Eigen::VectorXd x_meas_;
+  Eigen::VectorXd *x_meas_smh_ptr_;
 
-  std::vector<Eigen::VectorXd> us_;
-  std::vector<Eigen::VectorXd> xs_;
-  Eigen::VectorXd interpolated_xs_;
-  Eigen::MatrixXd gs_;
+  Eigen::VectorXd us_;
+  Eigen::VectorXd *us_smh_ptr_;
+
+  Eigen::VectorXd xs_;
+  Eigen::VectorXd *xs_smh_ptr_;
+
+  Eigen::MatrixXd Ks_;
+  Eigen::MatrixXd *Ks_smh_ptr_;
+
+  Eigen::Vector3d *target_smh_ptr_;
 
   Eigen::Vector3d pos_error_;
 
   Eigen::Vector3d end_effector_pos_;
 
   int n_joints_;
+  std::vector<std::string> joints_names_;
 
   bool enable_logging_;
   logger_OCP::logger logger_;
@@ -130,9 +164,14 @@ private:
   /// @brief Current state at time t, overwritten next timestep
   state current_state_;
 
+  void init_shared_memory();
+
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
   void read_state_from_hardware();
+
+  void update_target_from_subscriber(
+      const std_msgs::msg::Float64MultiArray::SharedPtr msg);
 
   /// @brief set the effort command
   /// @param interface_command command_interface to send the command to

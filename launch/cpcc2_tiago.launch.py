@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from launch import LaunchDescription
-from launch.actions import TimerAction
+from launch.actions import TimerAction, ExecuteProcess
 from launch_pal.include_utils import include_launch_py_description
+import os
+from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
@@ -26,11 +28,21 @@ def generate_launch_description():
         "cpcc2_tiago", ["launch", "crocoddyl_controller.launch.py"]
     )
 
+    package_bin_dir = os.path.join(get_package_share_directory("cpcc2_tiago"), "bin")
+    executable_path = os.path.join(package_bin_dir, "parallel_croc_solver")
+
+    threaded_solver_launch = ExecuteProcess(cmd=[executable_path], output="screen")
+
     ld = LaunchDescription()
 
     ld.add_action(pveg_chained_controller_launch)
 
     ld.add_action(
-        TimerAction(period=2.0, actions=[crocoddyl_controller_launch])
+        TimerAction(period=1.0, actions=[crocoddyl_controller_launch])
     )  # We wait for the pveg_chained_controller to fully load,then launch the crocoddyl one
+
+    ld.add_action(
+        TimerAction(period=1.0, actions=[threaded_solver_launch])
+    )  # We wait for the pveg_chained_controller to fully load,then launch the crocoddyl one
+
     return ld

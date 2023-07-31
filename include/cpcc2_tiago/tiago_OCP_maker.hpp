@@ -93,8 +93,8 @@ public:
   const Vector3d get_target();
   double get_time_step();
   int get_horizon_length();
-  const std::vector<VectorXd> get_us();
-  const std::vector<VectorXd> get_xs();
+  const VectorXd get_us();
+  const VectorXd get_xs();
   const Eigen::MatrixXd get_gains();
 
   StateMultibody get_state() { return *state_; }
