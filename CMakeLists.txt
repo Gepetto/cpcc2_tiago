@@ -60,7 +60,6 @@ add_library(
   src/tiago_OCP_maker.cpp
   src/model_builder.cpp
   src/logger_OCP.cpp
-  ##include/cpcc2_tiago/model_builder.hpp
 
 )
 target_include_directories(
@@ -105,9 +104,13 @@ ament_export_libraries(
 
 ## parallel_croc_solver
 
-include_directories(include)
-
 add_executable(parallel_croc_solver src/parallel_croc_solver.cpp)
+
+target_include_directories(
+  parallel_croc_solver
+  PRIVATE
+  include
+)
 
 install(
   TARGETS

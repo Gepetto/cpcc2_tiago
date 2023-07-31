@@ -1,10 +1,10 @@
 #ifndef CROCODDYL_CONTROLLER_HPP
 #define CROCODDYL_CONTROLLER_HPP
 
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/containers/vector.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/thread/thread_time.hpp>
 
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
@@ -32,25 +32,25 @@ namespace cpcc2_tiago {
 /// @brief Effort Controller (Higher Level Controller) to set reference
 /// interfaces received from Chainable Controller
 class CrocoddylController : public controller_interface::ControllerInterface {
-public:
+ public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration
-  command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration command_interface_configuration()
+      const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration
-  state_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration()
+      const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::return_type
-  update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type update(
+      const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -74,19 +74,19 @@ public:
 
   controller_interface::CallbackReturn read_parameters();
 
-private:
+ private:
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
   };
 
-  SharedMutex mutex_;
+  std::shared_ptr<ParamListener> param_listener_;
+  Params params_;
+
+  boost::interprocess::named_mutex mutex2_{boost::interprocess::open_or_create,
+                                           "mutex2"};
 
   // the solver run in another process, we used shared memory to communicate
-
-  boost::interprocess::shared_memory_object joints_shm_;
-  boost::interprocess::mapped_region joints_region_;
-  std::vector<std::string> *joints_smh_ptr_;
 
   boost::interprocess::shared_memory_object x_meas_shm_;
   boost::interprocess::mapped_region x_meas_region_;
@@ -158,9 +158,6 @@ private:
   /// position
   std::vector<std::string> state_interface_types_;
 
-  std::shared_ptr<ParamListener> param_listener_;
-  Params params_;
-
   /// @brief Current state at time t, overwritten next timestep
   state current_state_;
 
@@ -180,5 +177,5 @@ private:
   void set_x_command(Eigen::VectorXd command_x);
   void set_K_command(Eigen::MatrixXd comman_K);
 };
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 #endif

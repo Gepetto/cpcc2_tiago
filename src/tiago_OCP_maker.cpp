@@ -85,9 +85,9 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
 
   // Adding the regularization terms to the cost
   costs_->addCost("xReg", x_reg_cost,
-                  costs_weights["xReg_weight"]); // 1e-3
+                  costs_weights["xReg_weight"]);  // 1e-3
   costs_->addCost("uReg", u_reg_cost,
-                  costs_weights["uReg_weight"]); // 1e-4
+                  costs_weights["uReg_weight"]);  // 1e-4
 
   // Adding the state limits penalization
   Eigen::VectorXd x_lb(state_nq_ + state_nv_);
@@ -159,4 +159,4 @@ const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
 const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
 const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
 
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP
