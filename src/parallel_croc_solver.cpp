@@ -14,19 +14,19 @@ void resize_vectors() {
 }
 
 void init_shared_memory() {
-  x_meas_shm_ = boost::interprocess::shared_memory_object(
-      boost::interprocess::open_only, "x_meas_shm",
-      boost::interprocess::read_write);
+  // x_meas_shm_ = boost::interprocess::shared_memory_object(
+  //     boost::interprocess::open_only, "x_meas_shm",
+  //     boost::interprocess::read_write);
 
-  x_meas_region_ = boost::interprocess::mapped_region(
-      x_meas_shm_, boost::interprocess::read_write);
+  // x_meas_region_ = boost::interprocess::mapped_region(
+  //     x_meas_shm_, boost::interprocess::read_write);
 
-  x_meas_data_ptr_ = static_cast<double *>(x_meas_region_.get_address());
+  // x_meas_data_ptr_ = static_cast<double *>(x_meas_region_.get_address());
 
-  x_meas_smh_vec_.resize(x_meas_.size());
+  // x_meas_smh_vec_.resize(x_meas_.size());
 
-  x_meas_smh_vec_ =
-      Eigen::Map<Eigen::VectorXd>(x_meas_data_ptr_, x_meas_.size());
+  // x_meas_smh_vec_ =
+  //     Eigen::Map<Eigen::VectorXd>(x_meas_data_ptr_, x_meas_.size());
 
   //   us_shm_ = boost::interprocess::shared_memory_object(
   //       boost::interprocess::open_only, "us_shm",
@@ -88,27 +88,30 @@ int main() {
 
   using namespace boost::interprocess;
 
-  using ShmemAllocator = allocator<int, managed_shared_memory::segment_manager>;
-  using MyVector = vector<int, ShmemAllocator>;
+  using ShmemAllocator =
+      allocator<double, managed_shared_memory::segment_manager>;
+  using MyVector = vector<double, ShmemAllocator>;
 
-  managed_shared_memory segment(open_only, "MySharedMemory");
-  MyVector *myVector = segment.find<MyVector>("MyVector").first;
+  managed_shared_memory x_meas_shm_(open_only, "shared_memory");
+  MyVector *myVector = x_meas_shm_.find<MyVector>("MyVector").first;
 
   std::cout << "Size of shared vector: " << myVector->size() << std::endl;
-
-  MyVector::iterator iter = myVector->begin();
-  while (iter++ != myVector->end()) {
-    std::cout << "nvalue = " << *iter << std::endl;
-  }
 
   mutex2_.unlock();
   // #include <stdlib.h>
 
-  //   while (true) {
-  //     sleep(0.5);
-  //     mutex2_.lock();
-  //     vec = x_meas_smh_vec_;
-  //     mutex2_.unlock();
-  //     std::cout << vec.transpose() << std::endl;
-  //   }
+  while (true) {
+    sleep(1);
+    mutex2_.lock();
+    //     vec = x_meas_smh_vec_;
+    MyVector::iterator iter = myVector->begin();
+    while (iter != myVector->end()) {
+      std::cout << " " << *iter << " ";
+      iter++;
+    }
+
+    std::cout << std::endl;
+    mutex2_.unlock();
+    //     std::cout << vec.transpose() << std::endl;
+  }
 }

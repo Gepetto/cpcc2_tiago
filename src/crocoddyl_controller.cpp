@@ -3,25 +3,29 @@
 namespace cpcc2_tiago {
 
 void CrocoddylController::init_shared_memory() {
+  using namespace boost::interprocess;
+
+  using ShmemAllocator =
+      allocator<double, managed_shared_memory::segment_manager>;
+  using MyVector = vector<double, ShmemAllocator>;
+
+  shared_memory_object::remove("shared_memory");
+
+  managed_shared_memory x_meas_shm_(create_only, "shared_memory", 1000000);
+
+  const ShmemAllocator alloc_inst(x_meas_shm_.get_segment_manager());
+
+  MyVector *myVector = x_meas_shm_.construct<MyVector>("MyVector")(alloc_inst);
+
+  // for (int i = 0; i < 100; ++i) {
+  //   myVector->push_back(i);
+  // }
+
+  Eigen::VectorXd x_meas = Eigen::VectorXd::Constant(12, 6.1);
 
   mutex2_.lock();
 
-  using namespace boost::interprocess;
-
-  using ShmemAllocator = allocator<int, managed_shared_memory::segment_manager>;
-  using MyVector = vector<int, ShmemAllocator>;
-
-  shared_memory_object::remove("MySharedMemory");
-
-  managed_shared_memory segment(create_only, "MySharedMemory", 65536);
-
-  const ShmemAllocator alloc_inst(segment.get_segment_manager());
-
-  MyVector *myVector = segment.construct<MyVector>("MyVector")(alloc_inst);
-
-  for (int i = 0; i < 100; ++i) {
-    myVector->push_back(i);
-  }
+  myVector->assign(x_meas.data(), x_meas.data() + x_meas.size());
 
   mutex2_.unlock();
 
@@ -206,7 +210,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8); // random target
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8);  // random target
 
   OCP_tiago_.setTarget(hand_target);
 
@@ -239,7 +243,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   OCP_tiago_.printCosts();
 
   std::unordered_map<std::string, int> columnNames{
-      {"error", 3} // name of column + their size
+      {"error", 3}  // name of column + their size
 
   };
   if (false) {
@@ -283,7 +287,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
@@ -307,10 +311,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/
-                            ,
-                            const rclcpp::Duration & /*period*/) {
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/
+    ,
+    const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -346,8 +350,6 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     // std::memcpy(&x_meas_smh_vec_, &x_meas_, sizeof(x_meas_smh_vec_));
     mutex2_.unlock();
 
-    std::cout << x_meas_smh_vec_.transpose() << std::endl;
-
     end_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
     solving_time_ = (end_solving_time_ - start_solving_time_)
@@ -367,12 +369,13 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     prev_solving_time_ = start_solving_time_;
   }
 
-  model_builder::updateReducedModel(x_meas_, model_,
-                                    data_); // set the model pos to the measured
-                                            // value to get the end effector pos
+  model_builder::updateReducedModel(
+      x_meas_, model_,
+      data_);  // set the model pos to the measured
+               // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation(); // get the end
-                                          // effector pos
+                          .translation();  // get the end
+                                           // effector pos
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -390,7 +393,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/
     // }
 
     logger_.data_to_log_ = {pos_error_};
-    logger_.log(); // log what is in data_to_log_
+    logger_.log();  // log what is in data_to_log_
   }
 
   return controller_interface::return_type::OK;
@@ -423,7 +426,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
