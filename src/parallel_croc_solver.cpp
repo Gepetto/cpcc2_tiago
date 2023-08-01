@@ -4,6 +4,9 @@ void read_params() {
   n_joints_ = params_.joints.size();
   joints_names_.reserve(n_joints_);
   joints_names_ = params_.joints;
+}
+
+void resize_vectors() {
   x_meas_.resize(2 * n_joints_);
   xs_.resize(2 * n_joints_);
   us_.resize(n_joints_);
@@ -15,58 +18,52 @@ void init_shared_memory() {
       boost::interprocess::open_only, "x_meas_shm",
       boost::interprocess::read_write);
 
-  x_meas_shm_.truncate(sizeof(x_meas_));
-
   x_meas_region_ = boost::interprocess::mapped_region(
       x_meas_shm_, boost::interprocess::read_write);
 
-  // ESSAYER FIXER TAILLE
-  x_meas_smh_ptr_ =
-      static_cast<Eigen::VectorXd *>(x_meas_region_.get_address());
+  x_meas_data_ptr_ = static_cast<double *>(x_meas_region_.get_address());
 
-  us_shm_ = boost::interprocess::shared_memory_object(
-      boost::interprocess::open_only, "us_shm",
-      boost::interprocess::read_write);
+  x_meas_smh_vec_.resize(x_meas_.size());
 
-  us_shm_.truncate(sizeof(us_));
+  x_meas_smh_vec_ =
+      Eigen::Map<Eigen::VectorXd>(x_meas_data_ptr_, x_meas_.size());
 
-  us_region_ = boost::interprocess::mapped_region(
-      us_shm_, boost::interprocess::read_write);
+  //   us_shm_ = boost::interprocess::shared_memory_object(
+  //       boost::interprocess::open_only, "us_shm",
+  //       boost::interprocess::read_write);
 
-  us_smh_ptr_ = static_cast<Eigen::VectorXd *>(us_region_.get_address());
+  //   us_region_ = boost::interprocess::mapped_region(
+  //       us_shm_, boost::interprocess::read_write);
 
-  xs_shm_ = boost::interprocess::shared_memory_object(
-      boost::interprocess::open_only, "xs_shm",
-      boost::interprocess::read_write);
+  //   us_smh_ptr_ = static_cast<Eigen::VectorXd *>(us_region_.get_address());
 
-  xs_shm_.truncate(sizeof(xs_));
+  //   xs_shm_ = boost::interprocess::shared_memory_object(
+  //       boost::interprocess::open_only, "xs_shm",
+  //       boost::interprocess::read_write);
 
-  xs_region_ = boost::interprocess::mapped_region(
-      xs_shm_, boost::interprocess::read_write);
+  //   xs_region_ = boost::interprocess::mapped_region(
+  //       xs_shm_, boost::interprocess::read_write);
 
-  xs_smh_ptr_ = static_cast<Eigen::VectorXd *>(xs_region_.get_address());
+  //   xs_smh_ptr_ = static_cast<Eigen::VectorXd *>(xs_region_.get_address());
 
-  Ks_shm_ = boost::interprocess::shared_memory_object(
-      boost::interprocess::open_only, "K_shm", boost::interprocess::read_write);
+  //   Ks_shm_ = boost::interprocess::shared_memory_object(
+  //       boost::interprocess::open_only, "K_shm",
+  //       boost::interprocess::read_write);
 
-  Ks_shm_.truncate(sizeof(Ks_));
+  //   Ks_region_ = boost::interprocess::mapped_region(
+  //       Ks_shm_, boost::interprocess::read_write);
 
-  Ks_region_ = boost::interprocess::mapped_region(
-      Ks_shm_, boost::interprocess::read_write);
+  //   Ks_smh_ptr_ = static_cast<Eigen::MatrixXd *>(Ks_region_.get_address());
 
-  Ks_smh_ptr_ = static_cast<Eigen::MatrixXd *>(Ks_region_.get_address());
+  //   target_shm_ = boost::interprocess::shared_memory_object(
+  //       boost::interprocess::open_only, "target_shm",
+  //       boost::interprocess::read_write);
 
-  target_shm_ = boost::interprocess::shared_memory_object(
-      boost::interprocess::open_only, "target_shm",
-      boost::interprocess::read_write);
+  //   target_region_ = boost::interprocess::mapped_region(
+  //       target_shm_, boost::interprocess::read_write);
 
-  target_shm_.truncate(sizeof(Eigen::Vector3d));
-
-  target_region_ = boost::interprocess::mapped_region(
-      target_shm_, boost::interprocess::read_write);
-
-  target_smh_ptr_ =
-      static_cast<Eigen::Vector3d *>(target_region_.get_address());
+  //   target_smh_ptr_ =
+  //       static_cast<Eigen::Vector3d *>(target_region_.get_address());
 }
 
 int main() {
@@ -79,19 +76,39 @@ int main() {
     }
 
     if (!mutex2_.timed_lock(boost::get_system_time() +
-                            boost::posix_time::milliseconds(1000))) {
+                            boost::posix_time::milliseconds(10))) {
       mutex2_.unlock();
     }
   }
 
   Eigen::VectorXd vec;
-  // vec.resize((*x_meas_smh_ptr_).size());
+  vec.resize(x_meas_.size());
 
-  while (true) {
-    mutex2_.lock();
-    // vec = *x_meas_smh_ptr_;
-    mutex2_.unlock();
+  mutex2_.lock();
 
-    std::cout << (*x_meas_smh_ptr_).size() << std::endl;
+  using namespace boost::interprocess;
+
+  using ShmemAllocator = allocator<int, managed_shared_memory::segment_manager>;
+  using MyVector = vector<int, ShmemAllocator>;
+
+  managed_shared_memory segment(open_only, "MySharedMemory");
+  MyVector *myVector = segment.find<MyVector>("MyVector").first;
+
+  std::cout << "Size of shared vector: " << myVector->size() << std::endl;
+
+  MyVector::iterator iter = myVector->begin();
+  while (iter++ != myVector->end()) {
+    std::cout << "nvalue = " << *iter << std::endl;
   }
+
+  mutex2_.unlock();
+  // #include <stdlib.h>
+
+  //   while (true) {
+  //     sleep(0.5);
+  //     mutex2_.lock();
+  //     vec = x_meas_smh_vec_;
+  //     mutex2_.unlock();
+  //     std::cout << vec.transpose() << std::endl;
+  //   }
 }
