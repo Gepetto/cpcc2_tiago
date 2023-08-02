@@ -14,10 +14,9 @@ void resize_vectors() {
 }
 
 void init_shared_memory() {
-
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crcoddyl_shm"); // segment name
+      "crcoddyl_shm");  // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -25,6 +24,7 @@ void init_shared_memory() {
   xs_shm_ = crocoddyl_shm_.find<shared_vector>("xs_shm").first;
   Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
   target_smh_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
+  solver_started = crocoddyl_shm_.find<bool>("solver_started").first;
 }
 
 Eigen::VectorXd read_controller_x() {
@@ -33,6 +33,14 @@ Eigen::VectorXd read_controller_x() {
       Eigen::Map<Eigen::VectorXd>(x_meas_shm_->data(), x_meas_shm_->size());
   mutex_.unlock();
   return x;
+}
+
+Eigen::Vector3d read_controller_target() {
+  mutex_.lock();
+  Eigen::Vector3d target =
+      Eigen::Map<Eigen::Vector3d>(target_smh_->data(), target_smh_->size());
+  mutex_.unlock();
+  return target;
 }
 
 void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs,
@@ -64,12 +72,72 @@ int main() {
 
   init_shared_memory();
 
+  // Build the model from the urdf
+  model_ = model_builder::build_model(joints_names_);
+
+  data_ = Data(model_);
+
+  // create the OCP object
+  OCP_tiago_ = tiago_OCP::OCP(model_, data_);
+
+  VectorXd x0 = VectorXd::Zero(model_.nq + model_.nv);
+  OCP_tiago_.setX0(x0);
+
+  lh_id_ = model_.getFrameId("hand_tool_joint");
+  OCP_tiago_.setLhId(lh_id_);
+
+  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8);  // random target
+
+  OCP_tiago_.setTarget(hand_target);
+
+  std::cout << "Set target to: " << hand_target.transpose() << std::endl;
+
+  OCP_horizon_length_ = params_.horizon_length;
+  OCP_time_step_ = params_.time_step;
+  OCP_tiago_.setHorizonLength(OCP_horizon_length_);
+  OCP_tiago_.setTimeStep(OCP_time_step_);
+
+  std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
+                                              {"xReg_weight", 1e-3},
+                                              {"uReg_weight", 1e-4},
+                                              {"xBounds_weight", 1}};
+
+  VectorXd w_hand(6);
+
+  w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
+
+  VectorXd w_x(2 * model_.nv);
+
+  w_x << VectorXd::Zero(3), VectorXd::Constant(3, 10.0),
+      VectorXd::Constant(model_.nv - 6, 0.01),
+      VectorXd::Constant(model_.nv, 10.0);
+
+  OCP_tiago_.buildCostsModel(costs_weights, w_hand, w_x);
+  OCP_tiago_.buildDiffActModel();
+  OCP_tiago_.buildSolver();
+
+  OCP_tiago_.printCosts();
+
+  mutex_.lock();
+  *solver_started = true;
+  mutex_.unlock();
+
+  std::cout << "Solver started" << std::endl;
+
   while (true) {
-    sleep(1);
     x_meas_ = read_controller_x();
+    target_ = read_controller_target();
 
-    std::cout << x_meas_.transpose() << std::endl;
+    if (target_ != OCP_tiago_.get_target()) {
+      OCP_tiago_.changeTarget(target_);
+    }
 
-    //     std::cout << vec.transpose() << std::endl;
+    OCP_tiago_.solve(x_meas_);
+
+    us_ = OCP_tiago_.get_us();
+    xs_ = OCP_tiago_.get_xs();
+    Ks_ = OCP_tiago_.get_gains();
+
+    send_controller_result(us_, xs_, Ks_);
   }
 }
