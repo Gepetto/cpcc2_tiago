@@ -3,95 +3,54 @@
 namespace cpcc2_tiago {
 
 void CrocoddylController::init_shared_memory() {
-  using namespace boost::interprocess;
 
-  using ShmemAllocator =
-      allocator<double, managed_shared_memory::segment_manager>;
-  using MyVector = vector<double, ShmemAllocator>;
+  boost::interprocess::shared_memory_object::remove("crcoddyl_shm");
 
-  shared_memory_object::remove("shared_memory");
+  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
+      boost::interprocess::create_only,
+      "crcoddyl_shm", // segment name
+      2 * sizeof(double) *
+          (x_meas_.size() + us_.size() + xs_.size() + Ks_.size() +
+           3)); // segment size in bytes
 
-  managed_shared_memory x_meas_shm_(create_only, "shared_memory", 1000000);
+  // Initialize shared memory STL-compatible allocator
+  const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
 
-  const ShmemAllocator alloc_inst(x_meas_shm_.get_segment_manager());
+  // Construct a shared memory
+  x_meas_shm_ =
+      crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
+      (alloc_inst); // first ctor parameter
 
-  MyVector *myVector = x_meas_shm_.construct<MyVector>("MyVector")(alloc_inst);
+  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
 
-  // for (int i = 0; i < 100; ++i) {
-  //   myVector->push_back(i);
-  // }
+  xs_shm_ = crocoddyl_shm_.construct<shared_vector>("xs_shm")(alloc_inst);
 
-  Eigen::VectorXd x_meas = Eigen::VectorXd::Constant(12, 6.1);
+  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
 
-  mutex2_.lock();
+  target_shm_ =
+      crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
 
-  myVector->assign(x_meas.data(), x_meas.data() + x_meas.size());
+  x_meas_shm_->resize(x_meas_.size());
+  us_shm_->resize(us_.size());
+  xs_shm_->resize(xs_.size());
+  Ks_shm_->resize(Ks_.size());
+  target_shm_->resize(3);
+}
 
-  mutex2_.unlock();
+void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
+  mutex_.lock();
+  x_meas_shm_->assign(x.data(), x.data() + x.size());
+  mutex_.unlock();
+}
 
-  // boost::interprocess::shared_memory_object::remove("x_meas_shm"); // in case
-  // of previous crash
-
-  // x_meas_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::create_only, "x_meas_shm",
-  //     boost::interprocess::read_write);
-
-  // x_meas_shm_.truncate(sizeof(x_meas_));
-
-  // x_meas_region_ = boost::interprocess::mapped_region(
-  // x_meas_shm_, boost::interprocess::read_write);
-
-  // x_meas_data_ptr_ = static_cast<double *>(x_meas_region_.get_address());
-
-  // x_meas_smh_vec_.resize(x_meas_.size());
-
-  // x_meas_smh_vec_ =
-  //     Eigen::Map<Eigen::VectorXd>(x_meas_data_ptr_, x_meas_.size());
-
-  // us_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::open_or_create, "us_shm",
-  //     boost::interprocess::read_write);
-
-  // us_shm_.truncate(sizeof(us_));
-
-  // us_region_ = boost::interprocess::mapped_region(
-  //     us_shm_, boost::interprocess::read_write);
-
-  // us_smh_ptr_ = static_cast<Eigen::VectorXd *>(us_region_.get_address());
-
-  // xs_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::open_or_create, "xs_shm",
-  //     boost::interprocess::read_write);
-
-  // xs_shm_.truncate(sizeof(xs_));
-
-  // xs_region_ = boost::interprocess::mapped_region(
-  //     xs_shm_, boost::interprocess::read_write);
-
-  // xs_smh_ptr_ = static_cast<Eigen::VectorXd *>(xs_region_.get_address());
-
-  // Ks_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::open_or_create, "K_shm",
-  //     boost::interprocess::read_write);
-
-  // Ks_shm_.truncate(sizeof(Ks_));
-
-  // Ks_region_ = boost::interprocess::mapped_region(
-  //     Ks_shm_, boost::interprocess::read_write);
-
-  // Ks_smh_ptr_ = static_cast<Eigen::MatrixXd *>(Ks_region_.get_address());
-
-  // target_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::open_or_create, "target_shm",
-  //     boost::interprocess::read_write);
-
-  // target_shm_.truncate(sizeof(Eigen::Vector3d));
-
-  // target_region_ = boost::interprocess::mapped_region(
-  //     target_shm_, boost::interprocess::read_write);
-
-  // target_smh_ptr_ =
-  //     static_cast<Eigen::Vector3d *>(target_region_.get_address());
+void CrocoddylController::read_solver_results() {
+  mutex_.lock();
+  us_ = Eigen::Map<Eigen::VectorXd>(us_shm_->data(), us_shm_->size());
+  xs_ = Eigen::Map<Eigen::VectorXd>(xs_shm_->data(), xs_shm_->size());
+  Ks_ = Eigen::Map<
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+      Ks_shm_->data(), Ks_.rows(), Ks_.cols());
+  mutex_.unlock();
 }
 
 void CrocoddylController::update_target_from_subscriber(
@@ -182,17 +141,17 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   }
 
   while (true) {
-    if (mutex2_.try_lock()) {
+    if (mutex_.try_lock()) {
       break;
     }
 
-    if (!mutex2_.timed_lock(boost::get_system_time() +
-                            boost::posix_time::milliseconds(10))) {
-      mutex2_.unlock();
+    if (!mutex_.timed_lock(boost::get_system_time() +
+                           boost::posix_time::milliseconds(10))) {
+      mutex_.unlock();
     }
   }
 
-  mutex2_.unlock();
+  mutex_.unlock();
 
   init_shared_memory();
 
@@ -201,49 +160,49 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   data_ = Data(model_);
 
-  // create the OCP object
-  OCP_tiago_ = tiago_OCP::OCP(model_, data_);
+  // // create the OCP object
+  // OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
-  VectorXd x0 = VectorXd::Zero(model_.nq + model_.nv);
-  OCP_tiago_.setX0(x0);
+  // VectorXd x0 = VectorXd::Zero(model_.nq + model_.nv);
+  // OCP_tiago_.setX0(x0);
 
-  lh_id_ = model_.getFrameId("hand_tool_joint");
-  OCP_tiago_.setLhId(lh_id_);
+  // lh_id_ = model_.getFrameId("hand_tool_joint");
+  // OCP_tiago_.setLhId(lh_id_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8);  // random target
+  // Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8); // random target
 
-  OCP_tiago_.setTarget(hand_target);
+  // OCP_tiago_.setTarget(hand_target);
 
-  std::cout << "Set target to: " << hand_target.transpose() << std::endl;
+  // std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
-  OCP_horizon_length_ = params_.horizon_length;
-  OCP_time_step_ = params_.time_step;
-  OCP_tiago_.setHorizonLength(OCP_horizon_length_);
-  OCP_tiago_.setTimeStep(OCP_time_step_);
+  // OCP_horizon_length_ = params_.horizon_length;
+  // OCP_time_step_ = params_.time_step;
+  // OCP_tiago_.setHorizonLength(OCP_horizon_length_);
+  // OCP_tiago_.setTimeStep(OCP_time_step_);
 
-  std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
-                                              {"xReg_weight", 1e-3},
-                                              {"uReg_weight", 1e-4},
-                                              {"xBounds_weight", 1}};
+  // std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
+  //                                             {"xReg_weight", 1e-3},
+  //                                             {"uReg_weight", 1e-4},
+  //                                             {"xBounds_weight", 1}};
 
-  VectorXd w_hand(6);
+  // VectorXd w_hand(6);
 
-  w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
+  // w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
 
-  VectorXd w_x(2 * model_.nv);
+  // VectorXd w_x(2 * model_.nv);
 
-  w_x << VectorXd::Zero(3), VectorXd::Constant(3, 10.0),
-      VectorXd::Constant(model_.nv - 6, 0.01),
-      VectorXd::Constant(model_.nv, 10.0);
+  // w_x << VectorXd::Zero(3), VectorXd::Constant(3, 10.0),
+  //     VectorXd::Constant(model_.nv - 6, 0.01),
+  //     VectorXd::Constant(model_.nv, 10.0);
 
-  OCP_tiago_.buildCostsModel(costs_weights, w_hand, w_x);
-  OCP_tiago_.buildDiffActModel();
-  OCP_tiago_.buildSolver();
+  // OCP_tiago_.buildCostsModel(costs_weights, w_hand, w_x);
+  // OCP_tiago_.buildDiffActModel();
+  // OCP_tiago_.buildSolver();
 
-  OCP_tiago_.printCosts();
+  // OCP_tiago_.printCosts();
 
   std::unordered_map<std::string, int> columnNames{
-      {"error", 3}  // name of column + their size
+      {"error", 3} // name of column + their size
 
   };
   if (false) {
@@ -287,7 +246,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
@@ -311,10 +270,10 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/
-    ,
-    const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/
+                            ,
+                            const rclcpp::Duration & /*period*/) {
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
   update_frequency_ = 1 / ((start_update_time_ - prev_update_time_)
                                .to_chrono<std::chrono::microseconds>()
@@ -326,29 +285,32 @@ controller_interface::return_type CrocoddylController::update(
   diff_ = (start_update_time_ - prev_solving_time_)
               .to_chrono<std::chrono::microseconds>();
 
+  read_state_from_hardware();
+
+  x_meas_ << current_state_.position, current_state_.velocity;
+
+  send_solver_x(x_meas_);
+
   if ((diff_.count() + solving_time_) * 1e-6 > OCP_time_step_) {
     start_solving_time_ = start_update_time_;
 
-    read_state_from_hardware();
+    // OCP_tiago_.solve(x_meas_);
 
-    x_meas_ << current_state_.position, current_state_.velocity;
+    // us_ = OCP_tiago_.get_us();
+    // xs_ = OCP_tiago_.get_xs();
+    // Ks_ = OCP_tiago_.get_gains();
 
-    OCP_tiago_.solve(x_meas_);
+    // set_u_command(us_);
+    // set_x_command(xs_);
+    // set_K_command(Ks_);
 
-    us_ = OCP_tiago_.get_us();
-    xs_ = OCP_tiago_.get_xs();
-    Ks_ = OCP_tiago_.get_gains();
+    // std::cout << mutex_.try_lock() << std::endl;
+
+    read_solver_results();
 
     set_u_command(us_);
     set_x_command(xs_);
     set_K_command(Ks_);
-
-    // std::cout << mutex2_.try_lock() << std::endl;
-
-    mutex2_.lock();
-    // CHECK SI CA MARCHE SANS LE MEMCPY
-    // std::memcpy(&x_meas_smh_vec_, &x_meas_, sizeof(x_meas_smh_vec_));
-    mutex2_.unlock();
 
     end_solving_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
@@ -369,13 +331,12 @@ controller_interface::return_type CrocoddylController::update(
     prev_solving_time_ = start_solving_time_;
   }
 
-  model_builder::updateReducedModel(
-      x_meas_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
+  model_builder::updateReducedModel(x_meas_, model_,
+                                    data_); // set the model pos to the measured
+                                            // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
+                          .translation(); // get the end
+                                          // effector pos
 
   pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -393,7 +354,7 @@ controller_interface::return_type CrocoddylController::update(
     // }
 
     logger_.data_to_log_ = {pos_error_};
-    logger_.log();  // log what is in data_to_log_
+    logger_.log(); // log what is in data_to_log_
   }
 
   return controller_interface::return_type::OK;
@@ -426,7 +387,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

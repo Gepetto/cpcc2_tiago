@@ -34,25 +34,25 @@ namespace cpcc2_tiago {
 /// @brief Effort Controller (Higher Level Controller) to set reference
 /// interfaces received from Chainable Controller
 class CrocoddylController : public controller_interface::ControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::return_type update(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -76,7 +76,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
+private:
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
@@ -85,25 +85,19 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   std::shared_ptr<ParamListener> param_listener_;
   Params params_;
 
-  boost::interprocess::named_mutex mutex2_{boost::interprocess::open_or_create,
-                                           "mutex2"};
+  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
+                                          "mutex"};
 
-  // the solver run in another process, we used shared memory to communicate
+  // Alias an STL compatible allocator of ints that allocates ints from the
+  // managed shared memory segment.  This allocator will allow to place
+  // containers in managed shared memory segments
+  typedef boost::interprocess::allocator<
+      double, boost::interprocess::managed_shared_memory::segment_manager>
+      shm_allocator;
+  // Alias a vector that uses the previous STL-like allocator
+  typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
 
-  boost::interprocess::managed_shared_memory x_meas_shm_;
-  boost::interprocess::mapped_region x_meas_region_;
-
-  boost::interprocess::shared_memory_object us_shm_;
-  boost::interprocess::mapped_region us_region_;
-
-  boost::interprocess::shared_memory_object xs_shm_;
-  boost::interprocess::mapped_region xs_region_;
-
-  boost::interprocess::shared_memory_object Ks_shm_;
-  boost::interprocess::mapped_region Ks_region_;
-
-  boost::interprocess::shared_memory_object target_shm_;
-  boost::interprocess::mapped_region target_region_;
+  boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       target_subscriber_;
@@ -132,19 +126,18 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   double solving_time_ = 0.0;
 
   Eigen::VectorXd x_meas_;
-  double *x_meas_data_ptr_;
-  Eigen::VectorXd x_meas_smh_vec_;
+  shared_vector *x_meas_shm_;
 
   Eigen::VectorXd us_;
-  Eigen::VectorXd *us_smh_ptr_;
+  shared_vector *us_shm_;
 
   Eigen::VectorXd xs_;
-  Eigen::VectorXd *xs_smh_ptr_;
+  shared_vector *xs_shm_;
 
   Eigen::MatrixXd Ks_;
-  Eigen::MatrixXd *Ks_smh_ptr_;
+  shared_vector *Ks_shm_;
 
-  Eigen::Vector3d *target_smh_ptr_;
+  shared_vector *target_shm_;
 
   Eigen::Vector3d pos_error_;
 
@@ -166,6 +159,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   void init_shared_memory();
 
+  void send_solver_x(Eigen::VectorXd x);
+  void read_solver_results();
+
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
   void read_state_from_hardware();
@@ -180,5 +176,5 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   void set_x_command(Eigen::VectorXd command_x);
   void set_K_command(Eigen::MatrixXd comman_K);
 };
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 #endif

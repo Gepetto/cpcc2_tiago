@@ -14,104 +14,62 @@ void resize_vectors() {
 }
 
 void init_shared_memory() {
-  // x_meas_shm_ = boost::interprocess::shared_memory_object(
-  //     boost::interprocess::open_only, "x_meas_shm",
-  //     boost::interprocess::read_write);
 
-  // x_meas_region_ = boost::interprocess::mapped_region(
-  //     x_meas_shm_, boost::interprocess::read_write);
+  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
+      boost::interprocess::open_only,
+      "crcoddyl_shm"); // segment name
 
-  // x_meas_data_ptr_ = static_cast<double *>(x_meas_region_.get_address());
+  // Find the vector using the c-string name
+  x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
+  us_shm_ = crocoddyl_shm_.find<shared_vector>("us_shm").first;
+  xs_shm_ = crocoddyl_shm_.find<shared_vector>("xs_shm").first;
+  Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
+  target_smh_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
+}
 
-  // x_meas_smh_vec_.resize(x_meas_.size());
+Eigen::VectorXd read_controller_x() {
+  mutex_.lock();
+  Eigen::VectorXd x =
+      Eigen::Map<Eigen::VectorXd>(x_meas_shm_->data(), x_meas_shm_->size());
+  mutex_.unlock();
+  return x;
+}
 
-  // x_meas_smh_vec_ =
-  //     Eigen::Map<Eigen::VectorXd>(x_meas_data_ptr_, x_meas_.size());
-
-  //   us_shm_ = boost::interprocess::shared_memory_object(
-  //       boost::interprocess::open_only, "us_shm",
-  //       boost::interprocess::read_write);
-
-  //   us_region_ = boost::interprocess::mapped_region(
-  //       us_shm_, boost::interprocess::read_write);
-
-  //   us_smh_ptr_ = static_cast<Eigen::VectorXd *>(us_region_.get_address());
-
-  //   xs_shm_ = boost::interprocess::shared_memory_object(
-  //       boost::interprocess::open_only, "xs_shm",
-  //       boost::interprocess::read_write);
-
-  //   xs_region_ = boost::interprocess::mapped_region(
-  //       xs_shm_, boost::interprocess::read_write);
-
-  //   xs_smh_ptr_ = static_cast<Eigen::VectorXd *>(xs_region_.get_address());
-
-  //   Ks_shm_ = boost::interprocess::shared_memory_object(
-  //       boost::interprocess::open_only, "K_shm",
-  //       boost::interprocess::read_write);
-
-  //   Ks_region_ = boost::interprocess::mapped_region(
-  //       Ks_shm_, boost::interprocess::read_write);
-
-  //   Ks_smh_ptr_ = static_cast<Eigen::MatrixXd *>(Ks_region_.get_address());
-
-  //   target_shm_ = boost::interprocess::shared_memory_object(
-  //       boost::interprocess::open_only, "target_shm",
-  //       boost::interprocess::read_write);
-
-  //   target_region_ = boost::interprocess::mapped_region(
-  //       target_shm_, boost::interprocess::read_write);
-
-  //   target_smh_ptr_ =
-  //       static_cast<Eigen::Vector3d *>(target_region_.get_address());
+void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs,
+                            Eigen::MatrixXd Ks) {
+  mutex_.lock();
+  us_shm_->assign(us.data(), us.data() + us.size());
+  xs_shm_->assign(xs.data(), xs.data() + us.size());
+  Ks_shm_->assign(Ks.data(), Ks.data() + us.size());
+  mutex_.unlock();
 }
 
 int main() {
   read_params();
-  init_shared_memory();
 
   while (true) {
-    if (mutex2_.try_lock()) {
+    if (mutex_.try_lock()) {
       break;
     }
 
-    if (!mutex2_.timed_lock(boost::get_system_time() +
-                            boost::posix_time::milliseconds(10))) {
-      mutex2_.unlock();
+    if (!mutex_.timed_lock(boost::get_system_time() +
+                           boost::posix_time::milliseconds(10))) {
+      mutex_.unlock();
     }
   }
 
-  Eigen::VectorXd vec;
-  vec.resize(x_meas_.size());
+  mutex_.unlock();
 
-  mutex2_.lock();
+  sleep(1);
 
-  using namespace boost::interprocess;
-
-  using ShmemAllocator =
-      allocator<double, managed_shared_memory::segment_manager>;
-  using MyVector = vector<double, ShmemAllocator>;
-
-  managed_shared_memory x_meas_shm_(open_only, "shared_memory");
-  MyVector *myVector = x_meas_shm_.find<MyVector>("MyVector").first;
-
-  std::cout << "Size of shared vector: " << myVector->size() << std::endl;
-
-  mutex2_.unlock();
-  // #include <stdlib.h>
+  init_shared_memory();
 
   while (true) {
     sleep(1);
-    mutex2_.lock();
-    //     vec = x_meas_smh_vec_;
-    MyVector::iterator iter = myVector->begin();
-    while (iter != myVector->end()) {
-      std::cout << " " << *iter << " ";
-      iter++;
-    }
+    x_meas_ = read_controller_x();
 
-    std::cout << std::endl;
-    mutex2_.unlock();
+    std::cout << x_meas_.transpose() << std::endl;
+
     //     std::cout << vec.transpose() << std::endl;
   }
 }

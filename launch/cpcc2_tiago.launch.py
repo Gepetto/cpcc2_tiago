@@ -42,7 +42,7 @@ def generate_launch_description():
     )  # We wait for the pveg_chained_controller to fully load,then launch the crocoddyl one
 
     ld.add_action(
-        TimerAction(period=1.0, actions=[threaded_solver_launch])
+        TimerAction(period=2.0, actions=[threaded_solver_launch])
     )  # We wait for the pveg_chained_controller to fully load,then launch the crocoddyl one
 
     return ld

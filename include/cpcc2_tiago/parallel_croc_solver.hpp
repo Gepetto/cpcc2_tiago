@@ -18,44 +18,43 @@
 
 cpcc2_tiago::Params params_; // load parmeters from yaml file
 
-boost::interprocess::named_mutex mutex2_{boost::interprocess::open_or_create,
-                                         "mutex2"};
+boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
+                                        "mutex"};
 
-boost::interprocess::shared_memory_object x_meas_shm_;
-boost::interprocess::mapped_region x_meas_region_;
+typedef boost::interprocess::allocator<
+    double, boost::interprocess::managed_shared_memory::segment_manager>
+    shm_allocator;
 
-boost::interprocess::shared_memory_object us_shm_;
-boost::interprocess::mapped_region us_region_;
+// Alias a vector that uses the previous STL-like allocator
+typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
 
-boost::interprocess::shared_memory_object xs_shm_;
-boost::interprocess::mapped_region xs_region_;
-
-boost::interprocess::shared_memory_object Ks_shm_;
-boost::interprocess::mapped_region Ks_region_;
-
-boost::interprocess::shared_memory_object target_shm_;
-boost::interprocess::mapped_region target_region_;
+boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
 std::vector<std::string> joints_names_;
 int n_joints_;
 
 Eigen::VectorXd x_meas_;
-double *x_meas_data_ptr_;
-Eigen::VectorXd x_meas_smh_vec_;
+shared_vector *x_meas_shm_;
 
 Eigen::VectorXd us_;
-Eigen::VectorXd *us_smh_ptr_;
+shared_vector *us_shm_;
 
 Eigen::VectorXd xs_;
-Eigen::VectorXd *xs_smh_ptr_;
+shared_vector *xs_shm_;
 
 Eigen::MatrixXd Ks_;
-Eigen::MatrixXd *Ks_smh_ptr_;
+shared_vector *Ks_shm_;
 
-Eigen::Vector3d *target_smh_ptr_;
+shared_vector *target_smh_;
 
 void read_params();
 void resize_vectors();
+
+void initilize_shared_vectors();
+
+Eigen::VectorXd read_controller_x();
+void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs,
+                            Eigen::MatrixXd Ks);
 
 void init_shared_memory();
 
