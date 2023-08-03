@@ -16,7 +16,7 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crcoddyl_shm");  // segment name
+      "crcoddyl_shm"); // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -24,7 +24,9 @@ void init_shared_memory() {
   xs_shm_ = crocoddyl_shm_.find<shared_vector>("xs_shm").first;
   Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
   target_smh_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
-  solver_started = crocoddyl_shm_.find<bool>("solver_started").first;
+  solver_started_shm_ = crocoddyl_shm_.find<bool>("solver_started_shm").first;
+  is_first_update_done_shm_ =
+      crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
 }
 
 Eigen::VectorXd read_controller_x() {
@@ -68,8 +70,6 @@ int main() {
 
   mutex_.unlock();
 
-  sleep(1);
-
   init_shared_memory();
 
   // Build the model from the urdf
@@ -85,12 +85,6 @@ int main() {
 
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
-
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8);  // random target
-
-  OCP_tiago_.setTarget(hand_target);
-
-  std::cout << "Set target to: " << hand_target.transpose() << std::endl;
 
   OCP_horizon_length_ = params_.horizon_length;
   OCP_time_step_ = params_.time_step;
@@ -118,15 +112,31 @@ int main() {
 
   OCP_tiago_.printCosts();
 
-  mutex_.lock();
-  *solver_started = true;
-  mutex_.unlock();
-
   std::cout << "Solver started" << std::endl;
 
   while (true) {
+
+    if (is_first_update_done_ == false) {
+      mutex_.lock();
+      is_first_update_done_ = *is_first_update_done_shm_;
+      mutex_.unlock();
+      continue;
+    }
+
     x_meas_ = read_controller_x();
     target_ = read_controller_target();
+
+    if (is_first_update_done_ == true && solved_first_ == false) {
+      OCP_tiago_.changeTarget(target_);
+      std::cout << "First target:" << target_.transpose() << std::endl;
+      OCP_tiago_.solveFirst(x_meas_);
+      solved_first_ = true;
+      mutex_.lock();
+      *solver_started_shm_ = true;
+      mutex_.unlock();
+      std::cout << "First solve done" << std::endl;
+      continue;
+    }
 
     if (target_ != OCP_tiago_.get_target()) {
       OCP_tiago_.changeTarget(target_);

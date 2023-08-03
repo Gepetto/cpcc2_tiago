@@ -77,6 +77,7 @@ public:
 
   void createCallbacks(CallbackVerbose &callbacks);
 
+  void solveFirst(VectorXd measured_x);
   void solve(VectorXd measured_x);
 
   void setTarget(Vector3d target);

@@ -7,24 +7,28 @@ void CrocoddylController::init_shared_memory() {
 
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::create_only,
-      "crcoddyl_shm",  // segment name
+      "crcoddyl_shm", // segment name
       3 * sizeof(double) *
           (x_meas_.size() + us_.size() + xs_.size() + Ks_.size() +
-           3));  // segment size in bytes
+           3)); // segment size in bytes
 
   // Initialize shared memory STL-compatible allocator
   const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
 
   // Construct a shared memory
   x_meas_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // object name
-      (alloc_inst);  // first ctor parameter
+      crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
+      (alloc_inst); // first ctor parameter
   us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
   xs_shm_ = crocoddyl_shm_.construct<shared_vector>("xs_shm")(alloc_inst);
   Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
   target_shm_ =
       crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
-  solver_started = crocoddyl_shm_.construct<bool>("solver_started")(false);
+  solver_started_shm_ =
+      crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
+
+  is_first_update_done_shm_ =
+      crocoddyl_shm_.construct<bool>("is_first_update_done_shm")(false);
 
   x_meas_shm_->resize(x_meas_.size());
   us_shm_->resize(us_.size());
@@ -161,13 +165,10 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   data_ = Data(model_);
 
-  Vector3d hand_target = Eigen::Vector3d(0.8, 0, 0.8);  // random target
-
-  target_shm_->assign(hand_target.data(),
-                      hand_target.data() + hand_target.size());
+  lh_id_ = model_.getFrameId("hand_tool_joint");
 
   std::unordered_map<std::string, int> columnNames{
-      {"error", 3}  // name of column + their size
+      {"error", 3} // name of column + their size
 
   };
   if (false) {
@@ -211,7 +212,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY);
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
@@ -235,25 +236,48 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
-  if (!start_updating) {
-    mutex_.lock();
-    start_updating = *solver_started;
-    mutex_.unlock();
-    return controller_interface::return_type::OK;
-  }
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/,
+                            const rclcpp::Duration & /*period*/) {
 
   start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
-
-  diff_ = (start_update_time_ - prev_update_time_)
-              .to_chrono<std::chrono::microseconds>();
 
   read_state_from_hardware();
 
   x_meas_ << current_state_.position, current_state_.velocity;
 
+  // for first solver iteration, send the measured state to the solver
   send_solver_x(x_meas_);
+
+  model_builder::updateReducedModel(x_meas_, model_,
+                                    data_); // set the model pos to the measured
+                                            // value to get the end effector pos
+  end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
+                          .translation(); // get the end
+                                          // effector pos
+
+  if (is_first_update_) {
+    is_first_update_ = false;
+    // we fisrt set the target to the current end effector pos to
+    // set the balancing torque
+    mutex_.lock();
+    target_shm_->assign(end_effector_pos_.data(),
+                        end_effector_pos_.data() + end_effector_pos_.size());
+    *is_first_update_done_shm_ = true;
+    mutex_.unlock();
+
+    return controller_interface::return_type::OK;
+  }
+
+  if (!start_updating) {
+    mutex_.lock();
+    start_updating = *solver_started_shm_;
+    mutex_.unlock();
+    return controller_interface::return_type::OK;
+  }
+
+  diff_ = (start_update_time_ - prev_update_time_)
+              .to_chrono<std::chrono::microseconds>();
 
   if ((diff_.count()) * 1e-6 > OCP_time_step_) {
     prev_update_time_ = start_update_time_;
@@ -268,14 +292,6 @@ controller_interface::return_type CrocoddylController::update(
     std::cout << "Update frequency: " << 1 / (diff_.count() * 1e-6) << "Hz"
               << std::endl;
   }
-
-  model_builder::updateReducedModel(
-      x_meas_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
-  end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
 
   // pos_error_ = (OCP_tiago_.get_target() - end_effector_pos_);
 
@@ -293,7 +309,7 @@ controller_interface::return_type CrocoddylController::update(
     // }
 
     logger_.data_to_log_ = {pos_error_};
-    logger_.log();  // log what is in data_to_log_
+    logger_.log(); // log what is in data_to_log_
   }
 
   return controller_interface::return_type::OK;
@@ -326,7 +342,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

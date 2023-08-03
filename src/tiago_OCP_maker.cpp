@@ -43,7 +43,7 @@ void OCP::initOCPParms() {
 }
 
 void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
-                          Eigen::VectorXd w_hand, Eigen::VectorXd w_x) {
+                          VectorXd w_hand, VectorXd w_x) {
   // Hand position cost
 
   // Activation for the hand-placement cost
@@ -85,15 +85,15 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
 
   // Adding the regularization terms to the cost
   costs_->addCost("xReg", x_reg_cost,
-                  costs_weights["xReg_weight"]);  // 1e-3
+                  costs_weights["xReg_weight"]); // 1e-3
   costs_->addCost("uReg", u_reg_cost,
-                  costs_weights["uReg_weight"]);  // 1e-4
+                  costs_weights["uReg_weight"]); // 1e-4
 
   // Adding the state limits penalization
-  Eigen::VectorXd x_lb(state_nq_ + state_nv_);
+  VectorXd x_lb(state_nq_ + state_nv_);
   x_lb << state_->get_lb().segment(1, state_nv_),
       state_->get_lb().tail(state_nv_);
-  Eigen::VectorXd x_ub(state_nq_ + state_nv_);
+  VectorXd x_ub(state_nq_ + state_nv_);
   x_ub << state_->get_ub().segment(1, state_nv_),
       state_->get_ub().tail(state_nv_);
 
@@ -140,10 +140,37 @@ void OCP::createCallbacks(CallbackVerbose &callbacks) {
   solver_->setCallbacks(shrd_callbacks);
 }
 
+void OCP::solveFirst(VectorXd measured_x) {
+  // horizon settings
+  std::vector<VectorXd> xs_init;
+  std::vector<VectorXd> us_init;
+
+  for (std::size_t i = 0; i < horizon_length_; i++) {
+    xs_init.push_back(measured_x);
+    us_init.push_back(
+        boost::static_pointer_cast<crocoddyl::ResidualModelControl>(
+            costs_->get_costs().at("uReg")->cost->get_residual())
+            ->get_reference());
+  }
+
+  xs_init.push_back(measured_x);
+
+  solver_->solve(xs_init, us_init, 500, false);
+}
+
 void OCP::solve(VectorXd measured_x) {
+  warm_xs_ = solver_->get_xs();
+  warm_xs_.erase(warm_xs_.begin());
+  warm_xs_[0] = measured_x;
+  warm_xs_.push_back(warm_xs_[warm_xs_.size() - 1]);
+
+  warm_us_ = solver_->get_us();
+  warm_us_.erase(warm_us_.begin());
+  warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
+
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(solver_->get_xs(), solver_->get_us(), 1);
+  solver_->solve(warm_xs_, solver_->get_us(), 1);
 }
 
 void OCP::logSolverData() {
@@ -157,6 +184,5 @@ double OCP::get_time_step() { return (time_step_); }
 int OCP::get_horizon_length() { return (horizon_length_); }
 const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
 const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
-const Eigen::MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
-
-};  // namespace tiago_OCP
+const MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
+}; // namespace tiago_OCP
