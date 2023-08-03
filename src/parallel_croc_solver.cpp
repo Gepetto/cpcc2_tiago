@@ -4,6 +4,7 @@ void read_params() {
   n_joints_ = params_.joints.size();
   joints_names_.reserve(n_joints_);
   joints_names_ = params_.joints;
+  OCP_solver_frequency_ = params_.OCP_solver_frequency;
 }
 
 void resize_vectors() {
@@ -16,7 +17,7 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crcoddyl_shm"); // segment name
+      "crcoddyl_shm");  // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -115,7 +116,8 @@ int main() {
   std::cout << "Solver started" << std::endl;
 
   while (true) {
-
+    // don't start solving until the first crocoddyl controller update is done
+    // and the first target is received
     if (is_first_update_done_ == false) {
       mutex_.lock();
       is_first_update_done_ = *is_first_update_done_shm_;
@@ -142,7 +144,17 @@ int main() {
       OCP_tiago_.changeTarget(target_);
     }
 
+    diff = std::chrono::high_resolution_clock::now() - last_solving_time_;
+    if (diff.count() * 1e-9 < 1 / OCP_solver_frequency_) {
+      continue;
+    }
+
+    std::cout << "Solver Frequency: " << 1 / (diff.count() * 1e-9) << " Hz"
+              << std::endl;
+
     OCP_tiago_.solve(x_meas_);
+
+    last_solving_time_ = std::chrono::high_resolution_clock::now();
 
     us_ = OCP_tiago_.get_us();
     xs_ = OCP_tiago_.get_xs();
