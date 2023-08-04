@@ -6,6 +6,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/thread/thread_time.hpp>
 
 #include "controller_interface/chainable_controller_interface.hpp"
@@ -34,25 +35,25 @@ namespace cpcc2_tiago {
 /// @brief Effort Controller (Higher Level Controller) to set reference
 /// interfaces received from Chainable Controller
 class CrocoddylController : public controller_interface::ControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::return_type update(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -76,7 +77,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
+private:
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
@@ -86,7 +87,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Params params_;
 
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          "mutex"};
+                                          "crocoddyl_mutex"};
 
   // Alias an STL compatible allocator of ints that allocates ints from the
   // managed shared memory segment.  This allocator will allow to place
@@ -107,11 +108,6 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   FrameIndex lh_id_;
 
-  tiago_OCP::OCP OCP_tiago_;
-
-  int OCP_horizon_length_;
-  double OCP_time_step_;
-
   std::chrono::microseconds diff_;
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time start_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
@@ -121,27 +117,27 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   rclcpp::Time prev_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_log_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
-  double interpolate_t_ = 0.0;
-  double update_frequency_ = 0.0;
-  double solving_time_ = 0.0;
-
   Eigen::VectorXd x_meas_;
   shared_vector *x_meas_shm_;
 
   Eigen::VectorXd us_;
   shared_vector *us_shm_;
 
-  Eigen::VectorXd xs_;
-  shared_vector *xs_shm_;
+  Eigen::VectorXd xs0_;
+  shared_vector *xs0_shm_;
+  Eigen::VectorXd xs1_;
+  shared_vector *xs1_shm_;
 
   Eigen::MatrixXd Ks_;
   shared_vector *Ks_shm_;
 
   shared_vector *target_shm_;
 
+  // is the first crocoddyl controller update done : target set
   bool is_first_update_ = true;
   bool *is_first_update_done_shm_;
 
+  // is the parallel crocoddyl solver started
   bool *solver_started_shm_;
   bool start_updating = false;
 
@@ -179,8 +175,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @param interface_command command_interface to send the command to
   /// @param command_eff vector of the desired torque
   void set_u_command(Eigen::VectorXd command_u);
-  void set_x_command(Eigen::VectorXd command_x);
+  void set_x0_command(Eigen::VectorXd command_x);
+  void set_x1_command(Eigen::VectorXd command_x);
   void set_K_command(Eigen::MatrixXd comman_K);
 };
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 #endif

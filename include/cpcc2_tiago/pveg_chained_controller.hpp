@@ -1,6 +1,14 @@
 #ifndef PVEG_CHAINED_CONTROLLER_HPP
 #define PVEG_CHAINED_CONTROLLER_HPP
 
+#include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/thread/thread_time.hpp>
+
 #include "Eigen/Dense"
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
@@ -34,22 +42,22 @@ namespace cpcc2_tiago {
 /// Controller
 class PvegChainedController
     : public controller_interface::ChainableControllerInterface {
- public:
+public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration command_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  command_interface_configuration() const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration state_interface_configuration()
-      const override;
+  controller_interface::InterfaceConfiguration
+  state_interface_configuration() const override;
 
- protected:
+protected:
   /// @brief Export reference_interfaces_ to Higher level controller
   std::vector<hardware_interface::CommandInterface>
   on_export_reference_interfaces() override;
@@ -63,16 +71,17 @@ class PvegChainedController
   /// @brief Update Interfaces from subscribers. This should be using a realtime
   /// subscriber if CROCODDYL_PVEG_CHAINED mode is false
   /// @return Controller Interface Success
-  controller_interface::return_type update_reference_from_subscribers()
-      override;
+  controller_interface::return_type
+  update_reference_from_subscribers() override;
 
   /// @brief Update Interface from update of High Level Controller.
   /// CROCODDYL_PVEG_CHAINED Mode is true
   /// @param time Current Time
   /// @param period Current Period
   /// @return Controller Interface Success
-  controller_interface::return_type update_and_write_commands(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+  controller_interface::return_type
+  update_and_write_commands(const rclcpp::Time &time,
+                            const rclcpp::Duration &period) override;
 
   /// @brief Update method for both the methods for
   /// @return If Successful then True, else false
@@ -100,14 +109,22 @@ class PvegChainedController
 
   controller_interface::CallbackReturn read_parameters();
 
- private:
-  Model model_;
-  Data data_;
-
+private:
   struct ricatti_command {
     Eigen::VectorXd u_command;
-    Eigen::VectorXd x_command;
+    Eigen::VectorXd x0_command;
+    Eigen::VectorXd x1_command;
     Eigen::MatrixXd K_command;
+
+    bool operator==(const ricatti_command &rhs) const {
+      return (u_command == rhs.u_command && x0_command == rhs.x0_command &&
+              x1_command == rhs.x1_command && K_command == rhs.K_command);
+    }
+
+    bool operator!=(const ricatti_command &rhs) const {
+      return (u_command != rhs.u_command || x0_command != rhs.x0_command ||
+              x1_command != rhs.x1_command || K_command != rhs.K_command);
+    };
   };
 
   struct state {
@@ -115,16 +132,27 @@ class PvegChainedController
     Eigen::VectorXd velocity;
   };
 
+  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
+                                          "crocoddyl_mutex"};
+
+  boost::interprocess::managed_shared_memory crocoddyl_shm_;
+
+  bool *start_sending_cmd_smh_;
+  bool start_sending_cmd_ = false;
+
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_command_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   double interpolate_t_ = 0.0;
+
+  Model model_;
+  Data data_;
 
   Eigen::VectorXd measuredX_;
   Eigen::VectorXd eff_command_;
   Eigen::VectorXd command_;
   Eigen::VectorXd corrected_eff_command_;
 
-  Eigen::VectorXd interpolated_xs_;
+  Eigen::VectorXd interpolated_xs0_;
 
   ricatti_command ricatti_command_;
   ricatti_command interpolated_ricatti_command_;
@@ -137,7 +165,8 @@ class PvegChainedController
   /// @brief Vector of Joint Names
   std::vector<std::string> arm_joint_names_;
 
-  /// @brief list of all command interfaces, in this case effort for each joint
+  /// @brief list of all command interfaces, in this case effort for each
+  /// joint
   std::vector<std::string> command_interface_types_;
 
   /// @brief all types of state interface, in our case effort, velocity,
@@ -164,8 +193,10 @@ class PvegChainedController
 
   logger_OCP::logger logger_;
 
+  void init_shared_memory();
+
   void read_joints_commands(
-      ricatti_command &ric_com);  // return true if new command is available
+      ricatti_command &ric_com); // return true if new command is available
 
   void read_state_from_hardware(state &curr_state);
 
@@ -180,15 +211,12 @@ class PvegChainedController
   Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
                                      double t);
 
-  void set_command(Eigen::VectorXd command);  // command is a mix between
-                                              // effort pos and vel
+  void set_command(Eigen::VectorXd command); // command is a mix between
+                                             // effort pos and vel
 };
 
-template <typename T>
-int sign(T val) {
-  return (T(0) < val) - (val < T(0));
-}
+template <typename T> int sign(T val) { return (T(0) < val) - (val < T(0)); }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #endif

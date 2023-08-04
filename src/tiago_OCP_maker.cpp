@@ -29,6 +29,9 @@ void OCP::setTimeStep(double time_step) { time_step_ = time_step; }
 void OCP::setHorizonLength(int horizon_length) {
   horizon_length_ = horizon_length;
 }
+void OCP::setSolverIterations(int iterations) {
+  solver_iterations_ = iterations;
+}
 
 void OCP::initOCPParms() {
   state_ =
@@ -85,9 +88,9 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
 
   // Adding the regularization terms to the cost
   costs_->addCost("xReg", x_reg_cost,
-                  costs_weights["xReg_weight"]);  // 1e-3
+                  costs_weights["xReg_weight"]); // 1e-3
   costs_->addCost("uReg", u_reg_cost,
-                  costs_weights["uReg_weight"]);  // 1e-4
+                  costs_weights["uReg_weight"]); // 1e-4
 
   // Adding the state limits penalization
   VectorXd x_lb(state_nq_ + state_nv_);
@@ -159,9 +162,19 @@ void OCP::solveFirst(VectorXd measured_x) {
 }
 
 void OCP::solve(VectorXd measured_x) {
+
+  warm_xs_ = solver_->get_xs();
+  warm_xs_.erase(warm_xs_.begin());
+  warm_xs_[0] = measured_x;
+  warm_xs_.push_back(warm_xs_[warm_xs_.size() - 1]);
+
+  warm_us_ = solver_->get_us();
+  warm_us_.erase(warm_us_.begin());
+  warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
+
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(solver_->get_xs(), solver_->get_us(), 1);
+  solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
 }
 
 void OCP::logSolverData() {
@@ -173,7 +186,7 @@ void OCP::logSolverData() {
 const Vector3d OCP::get_target() { return (target_); }
 double OCP::get_time_step() { return (time_step_); }
 int OCP::get_horizon_length() { return (horizon_length_); }
-const VectorXd OCP::get_us() { return (solver_->get_us()[0]); }
-const VectorXd OCP::get_xs() { return (solver_->get_xs()[0]); }
+const std::vector<VectorXd> OCP::get_us() { return (solver_->get_us()); }
+const std::vector<VectorXd> OCP::get_xs() { return (solver_->get_xs()); }
 const MatrixXd OCP::get_gains() { return (solver_->get_K()[0]); }
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP

@@ -53,6 +53,7 @@ private:
 
   size_t horizon_length_;
   double time_step_;
+  int solver_iterations_;
 
   size_t actuation_nu_;
   size_t state_nv_;
@@ -85,6 +86,7 @@ public:
   void setX0(VectorXd x0);
   void setTimeStep(double time_step);
   void setHorizonLength(int horizon_length);
+  void setSolverIterations(int iterations);
   void setLhId(FrameIndex lh_id);
 
   void printCosts() { std::cout << *costs_ << std::endl; };
@@ -94,8 +96,8 @@ public:
   const Vector3d get_target();
   double get_time_step();
   int get_horizon_length();
-  const VectorXd get_us();
-  const VectorXd get_xs();
+  const std::vector<VectorXd> get_us();
+  const std::vector<VectorXd> get_xs();
   const Eigen::MatrixXd get_gains();
 
   StateMultibody get_state() { return *state_; }

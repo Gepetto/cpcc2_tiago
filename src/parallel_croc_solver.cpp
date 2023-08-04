@@ -9,7 +9,8 @@ void read_params() {
 
 void resize_vectors() {
   x_meas_.resize(2 * n_joints_);
-  xs_.resize(2 * n_joints_);
+  xs0_.resize(2 * n_joints_);
+  xs1_.resize(2 * n_joints_);
   us_.resize(n_joints_);
   Ks_.resize(n_joints_, 2 * n_joints_);
 }
@@ -17,17 +18,20 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crcoddyl_shm");  // segment name
+      "crocoddyl_shm"); // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
   us_shm_ = crocoddyl_shm_.find<shared_vector>("us_shm").first;
-  xs_shm_ = crocoddyl_shm_.find<shared_vector>("xs_shm").first;
+  xs0_shm_ = crocoddyl_shm_.find<shared_vector>("xs0_shm").first;
+  xs1_shm_ = crocoddyl_shm_.find<shared_vector>("xs1_shm").first;
   Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
   target_smh_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
   solver_started_shm_ = crocoddyl_shm_.find<bool>("solver_started_shm").first;
   is_first_update_done_shm_ =
       crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
+  start_sending_cmd_shm_ =
+      crocoddyl_shm_.find<bool>("start_sending_cmd_shm").first;
 }
 
 Eigen::VectorXd read_controller_x() {
@@ -46,12 +50,13 @@ Eigen::Vector3d read_controller_target() {
   return target;
 }
 
-void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs,
-                            Eigen::MatrixXd Ks) {
+void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
+                            Eigen::VectorXd xs1, Eigen::MatrixXd Ks) {
   mutex_.lock();
   us_shm_->assign(us.data(), us.data() + us.size());
-  xs_shm_->assign(xs.data(), xs.data() + us.size());
-  Ks_shm_->assign(Ks.data(), Ks.data() + us.size());
+  xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
+  xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
+  Ks_shm_->assign(Ks.data(), Ks.data() + Ks.size());
   mutex_.unlock();
 }
 
@@ -87,10 +92,14 @@ int main() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
-  OCP_horizon_length_ = params_.horizon_length;
-  OCP_time_step_ = params_.time_step;
+  OCP_horizon_length_ = params_.OCP_horizon_length;
+  OCP_time_step_ = params_.OCP_time_step;
+  OCP_solver_iterations = params_.OCP_solver_iterations;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
+  OCP_tiago_.setSolverIterations(OCP_solver_iterations);
+
+  OCP_tiago_.setTarget(Eigen::Vector3d::Zero());
 
   std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
                                               {"xReg_weight", 1e-3},
@@ -113,7 +122,10 @@ int main() {
 
   OCP_tiago_.printCosts();
 
-  std::cout << "Solver started" << std::endl;
+  std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
+            << std::endl;
+
+  std::cout << "Solver iterations: " << OCP_solver_iterations << std::endl;
 
   while (true) {
     // don't start solving until the first crocoddyl controller update is done
@@ -130,8 +142,8 @@ int main() {
 
     if (is_first_update_done_ == true && solved_first_ == false) {
       OCP_tiago_.changeTarget(target_);
-      std::cout << "First target:" << target_.transpose() << std::endl;
-      OCP_tiago_.solveFirst(x_meas_);
+      std::cout << "First target: " << target_.transpose() << std::endl;
+      // OCP_tiago_.solveFirst(x_meas_);
       solved_first_ = true;
       mutex_.lock();
       *solver_started_shm_ = true;
@@ -149,17 +161,22 @@ int main() {
       continue;
     }
 
-    std::cout << "Solver Frequency: " << 1 / (diff.count() * 1e-9) << " Hz"
-              << std::endl;
-
     OCP_tiago_.solve(x_meas_);
 
     last_solving_time_ = std::chrono::high_resolution_clock::now();
 
-    us_ = OCP_tiago_.get_us();
-    xs_ = OCP_tiago_.get_xs();
+    us_ = OCP_tiago_.get_us()[0];
+    xs0_ = OCP_tiago_.get_xs()[0];
+    xs1_ = OCP_tiago_.get_xs()[1];
     Ks_ = OCP_tiago_.get_gains();
 
-    send_controller_result(us_, xs_, Ks_);
+    send_controller_result(us_, xs0_, xs1_, Ks_);
+
+    if (start_sending_cmd_ == false) {
+      mutex_.lock();
+      *start_sending_cmd_shm_ = true;
+      mutex_.unlock();
+      start_sending_cmd_ = true;
+    }
   }
 }
