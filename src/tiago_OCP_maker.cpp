@@ -174,7 +174,7 @@ void OCP::solve(VectorXd measured_x) {
 
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
+  solver_->solve(warm_xs_, warm_us_, solver_iterations_);
 }
 
 void OCP::logSolverData() {

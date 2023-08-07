@@ -39,11 +39,14 @@ tiago_OCP::OCP OCP_tiago_;
 
 int OCP_horizon_length_;
 double OCP_time_step_;
-int OCP_solver_iterations;
+int OCP_solver_iterations_;
 double OCP_solver_frequency_;
 
+std::chrono::time_point<std::chrono::high_resolution_clock> start_solving_time_;
 std::chrono::time_point<std::chrono::high_resolution_clock> last_solving_time_;
-std::chrono::duration<long, std::nano> diff;
+std::chrono::time_point<std::chrono::high_resolution_clock> current_t_;
+
+std::chrono::duration<long, std::nano> diff_;
 
 std::vector<std::string> joints_names_;
 int n_joints_;

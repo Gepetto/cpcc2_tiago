@@ -61,6 +61,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
 }
 
 int main() {
+
   read_params();
 
   while (true) {
@@ -94,10 +95,10 @@ int main() {
 
   OCP_horizon_length_ = params_.OCP_horizon_length;
   OCP_time_step_ = params_.OCP_time_step;
-  OCP_solver_iterations = params_.OCP_solver_iterations;
+  OCP_solver_iterations_ = params_.OCP_solver_iterations;
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
-  OCP_tiago_.setSolverIterations(OCP_solver_iterations);
+  OCP_tiago_.setSolverIterations(OCP_solver_iterations_);
 
   OCP_tiago_.setTarget(Eigen::Vector3d::Zero());
 
@@ -125,7 +126,9 @@ int main() {
   std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
             << std::endl;
 
-  std::cout << "Solver iterations: " << OCP_solver_iterations << std::endl;
+  std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
+
+  std::cout << std::endl;
 
   while (true) {
     // don't start solving until the first crocoddyl controller update is done
@@ -156,14 +159,14 @@ int main() {
       OCP_tiago_.changeTarget(target_);
     }
 
-    diff = std::chrono::high_resolution_clock::now() - last_solving_time_;
-    if (diff.count() * 1e-9 < 1 / OCP_solver_frequency_) {
+    diff_ = std::chrono::high_resolution_clock::now() - last_solving_time_;
+    if (diff_.count() * 1e-9 < 1 / OCP_solver_frequency_) {
       continue;
     }
 
-    OCP_tiago_.solve(x_meas_);
+    start_solving_time_ = std::chrono::high_resolution_clock::now();
 
-    last_solving_time_ = std::chrono::high_resolution_clock::now();
+    OCP_tiago_.solve(x_meas_);
 
     us_ = OCP_tiago_.get_us()[0];
     xs0_ = OCP_tiago_.get_xs()[0];
@@ -178,5 +181,22 @@ int main() {
       mutex_.unlock();
       start_sending_cmd_ = true;
     }
+
+    current_t_ = std::chrono::high_resolution_clock::now();
+
+    if (current_t_.time_since_epoch().count() % 10 == 0) {
+      std::cout << "Solver frequency: " << std::fixed << std::setprecision(2)
+                << 1 / (diff_.count() * 1e-9) << " Hz, solving time: "
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       current_t_ - start_solving_time_)
+                           .count() /
+                       1000.0
+
+                << " ms" << std::endl;
+
+      std::cout << "\x1b[A";
+    }
+
+    last_solving_time_ = current_t_;
   }
 }

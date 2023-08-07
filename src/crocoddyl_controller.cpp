@@ -235,7 +235,6 @@ CrocoddylController::state_interface_configuration() const {
 controller_interface::return_type
 CrocoddylController::update(const rclcpp::Time & /*time*/,
                             const rclcpp::Duration & /*period*/) {
-  start_update_time_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
   read_state_from_hardware();
 
@@ -278,6 +277,21 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   set_K_command(Ks_);
   set_x1_command(xs1_);
 
+  current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
+
+  if ((int)current_t_.nanoseconds() % 100 == 0) {
+    std::cout << "Controllers update frequency: "
+              << 1 / ((current_t_ - last_update_time_)
+                          .to_chrono<std::chrono::microseconds>()
+                          .count() *
+                      1e-6)
+              << " Hz          " << std::endl;
+
+    std::cout << "\x1b[A";
+  }
+
+  last_update_time_ = current_t_;
+
   return controller_interface::return_type::OK;
 }
 
@@ -314,6 +328,7 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ + i]
         .set_value(command_x[i]);
+
     command_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ + n_joints_ +
                         i]
         .set_value(command_x[n_joints_ + i]);

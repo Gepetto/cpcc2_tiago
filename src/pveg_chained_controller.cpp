@@ -190,14 +190,14 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
         get_node()->get_name(),
         params_.joints[i] + "/" + hardware_interface::HW_IF_POSITION + "_1",
         &reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                               n_joints_ + i]));
+                               +i]));
   }
   for (int i = 0; i < n_joints_; i++) {
     reference_interfaces.push_back(hardware_interface::CommandInterface(
         get_node()->get_name(),
         params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY + "_1",
         &reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                               n_joints_ + n_joints_ + i]));
+                               +n_joints_ + i]));
   }
 
   return reference_interfaces;
@@ -376,9 +376,9 @@ PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
     if (params_.pveg_joints_command_type[i] == "effort") {
       command[i] = eff_command[i];
     } else if (params_.pveg_joints_command_type[i] == "velocity") {
-      command[i] = ric_cmd.x0_command[n_joints_ + i];
+      command[i] = ric_cmd.x1_command[n_joints_ + i];
     } else if (params_.pveg_joints_command_type[i] == "position") {
-      command[i] = ric_cmd.x0_command[i];
+      command[i] = ric_cmd.x1_command[i];
     }
   }
   return command;

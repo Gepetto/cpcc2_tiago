@@ -108,14 +108,9 @@ private:
 
   FrameIndex lh_id_;
 
-  std::chrono::microseconds diff_;
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time start_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time start_logging_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time end_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time prev_solving_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time prev_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time prev_log_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  rclcpp::Time last_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  rclcpp::Time current_t_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
   Eigen::VectorXd x_meas_;
   shared_vector *x_meas_shm_;
