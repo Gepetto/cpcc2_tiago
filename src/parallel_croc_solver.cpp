@@ -12,13 +12,13 @@ void resize_vectors() {
   xs0_.resize(2 * n_joints_);
   xs1_.resize(2 * n_joints_);
   us_.resize(n_joints_);
-  Ks_.resize(n_joints_, 2 * n_joints_);
+  Ks_.resize(2 * n_joints_, n_joints_);
 }
 
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crocoddyl_shm"); // segment name
+      "crocoddyl_shm");  // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -61,7 +61,6 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
 }
 
 int main() {
-
   read_params();
 
   while (true) {
@@ -130,6 +129,8 @@ int main() {
 
   std::cout << std::endl;
 
+  sleep(1);
+
   while (true) {
     // don't start solving until the first crocoddyl controller update is done
     // and the first target is received
@@ -172,6 +173,8 @@ int main() {
     xs0_ = OCP_tiago_.get_xs()[0];
     xs1_ = OCP_tiago_.get_xs()[1];
     Ks_ = OCP_tiago_.get_gains();
+
+    std::cout << "K" << Ks_ << std::endl;
 
     send_controller_result(us_, xs0_, xs1_, Ks_);
 
