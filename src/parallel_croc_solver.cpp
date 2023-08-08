@@ -18,7 +18,7 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crocoddyl_shm"); // segment name
+      "crocoddyl_shm");  // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -56,7 +56,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
+  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
     for (int j = 0; j < Ks_.cols(); j++) {
       Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
     }
@@ -135,8 +135,9 @@ int main() {
   sleep(1);
 
   while (true) {
-    // don't start solving until the first crocoddyl controller update is done
-    // and the first target is received
+    //  don't start solving until the first crocoddyl controller update is
+    //  done and the first target is received
+
     if (is_first_update_done_ == false) {
       mutex_.lock();
       is_first_update_done_ = *is_first_update_done_shm_;
