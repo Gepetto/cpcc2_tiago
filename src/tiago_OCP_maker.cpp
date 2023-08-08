@@ -18,8 +18,16 @@ void OCP::setTarget(Vector3d target) {
 void OCP::changeTarget(Vector3d target) {
   target_ = target;
   lh_Mref_ = SE3(Matrix3d::Identity(), target_);
+  // only change the cost of the last running node
   boost::static_pointer_cast<ResidualModelFramePlacement>(
-      costs_->get_costs().at("lh_goal")->cost->get_residual())
+      costs_[horizon_length_ - 1]
+          ->get_costs()
+          .at("lh_goal")
+          ->cost->get_residual())
+      ->set_reference(lh_Mref_);
+
+  boost::static_pointer_cast<ResidualModelFramePlacement>(
+      costs_[horizon_length_]->get_costs().at("lh_goal")->cost->get_residual())
       ->set_reference(lh_Mref_);
 }
 
@@ -42,11 +50,15 @@ void OCP::initOCPParms() {
   actuation_ = boost::make_shared<ActuationModelFull>(state_);
   actuation_nu_ = actuation_->get_nu();
   contacts_ = boost::make_shared<ContactModelMultiple>(state_, actuation_nu_);
-  costs_ = boost::make_shared<CostModelSum>(state_, actuation_nu_);
+  costs_ = std::vector<boost::shared_ptr<CostModelSum>>(
+      horizon_length_ + 1,
+      boost::make_shared<CostModelSum>(state_, actuation_nu_));
 }
 
 void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
                           VectorXd w_hand, VectorXd w_x) {
+
+  boost::shared_ptr<CostModelSum> cost;
   // Hand position cost
 
   // Activation for the hand-placement cost
@@ -62,7 +74,7 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
       boost::make_shared<CostModelResidual>(state_, activ_hand,
                                             res_mod_frm_plmt);
   // Adding the cost for the left hand
-  costs_->addCost("lh_goal", lh_cost, costs_weights["lh_goal_weight"]);
+  cost->addCost("lh_goal", lh_cost, costs_weights["lh_goal_weight"]);
 
   boost::shared_ptr<ActivationModelWeightedQuad> act_xreg =
       boost::make_shared<ActivationModelWeightedQuad>(w_x.cwiseAbs2());
@@ -87,10 +99,10 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
 
   // Adding the regularization terms to the cost
-  costs_->addCost("xReg", x_reg_cost,
-                  costs_weights["xReg_weight"]); // 1e-3
-  costs_->addCost("uReg", u_reg_cost,
-                  costs_weights["uReg_weight"]); // 1e-4
+  cost->addCost("xReg", x_reg_cost,
+                costs_weights["xReg_weight"]); // 1e-3
+  cost->addCost("uReg", u_reg_cost,
+                costs_weights["uReg_weight"]); // 1e-4
 
   // Adding the state limits penalization
   VectorXd x_lb(state_nq_ + state_nv_);
@@ -111,28 +123,46 @@ void OCP::buildCostsModel(std::map<std::string, double> costs_weights,
       boost::make_shared<CostModelResidual>(state_, act_xbounds,
                                             res_mod_state_xbounds);
 
-  costs_->addCost("xBounds", x_bounds, costs_weights["xBounds_weight"]);
+  cost->addCost("xBounds", x_bounds, costs_weights["xBounds_weight"]);
+
+  for (int node_id = 0; node_id < horizon_length_ + 1; node_id++) {
+    costs_.push_back(cost);
+  }
 }
 
-void OCP::buildDiffActModel() {
-  diff_act_model_ =
-      boost::make_shared<DifferentialActionModelContactFwdDynamics>(
-          state_, actuation_, contacts_, costs_);
+void OCP::recede() {
+  solver_->get_problem()->circularAppend(
+      solver_->get_problem()->get_runningModels()[0],
+      solver_->get_problem()->get_runningDatas()[0]);
 }
 
 void OCP::buildSolver() {
+
+  std::vector<boost::shared_ptr<ActionModelAbstract>> running_model;
+  boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model;
+
   // Creating a running rmodel for the target
-  boost::shared_ptr<IntegratedActionModelEuler> action_model =
-      boost::make_shared<IntegratedActionModelEuler>(diff_act_model_,
-                                                     time_step_);
+  for (size_t node_id = 0; node_id < horizon_length_; node_id++) {
+    diff_act_model =
+        boost::make_shared<DifferentialActionModelContactFwdDynamics>(
+            state_, actuation_, contacts_, costs_[node_id]);
 
-  std::vector<boost::shared_ptr<ActionModelAbstract>> running_seqs(
-      horizon_length_, action_model);
+    boost::shared_ptr<IntegratedActionModelEuler> action_model =
+        boost::make_shared<IntegratedActionModelEuler>(diff_act_model_,
+                                                       time_step_);
 
-  boost::shared_ptr<IntegratedActionModelEuler> mterm =
-      boost::make_shared<IntegratedActionModelEuler>(diff_act_model_, 0.0);
+    running_model.push_back(action_model);
+  }
 
-  problem_ = boost::make_shared<ShootingProblem>(x0_, running_seqs, mterm);
+  diff_act_model =
+      boost::make_shared<DifferentialActionModelContactFwdDynamics>(
+          state_, actuation_, contacts_, costs_[horizon_length_]);
+
+  boost::shared_ptr<IntegratedActionModelEuler> term_model =
+      boost::make_shared<IntegratedActionModelEuler>(diff_act_model, 0.0);
+
+  problem_ =
+      boost::make_shared<ShootingProblem>(x0_, running_model, term_model);
 
   solver_ = boost::make_shared<SolverFDDP>(problem_);
 }
@@ -150,18 +180,16 @@ void OCP::solveFirst(VectorXd measured_x) {
 
   for (std::size_t i = 0; i < horizon_length_; i++) {
     xs_init.push_back(measured_x);
-    us_init.push_back(
-        boost::static_pointer_cast<crocoddyl::ResidualModelControl>(
-            costs_->get_costs().at("uReg")->cost->get_residual())
-            ->get_reference());
+
+    xs_init.push_back(measured_x);
+
+    solver_->solve(xs_init, us_init, 500, false);
   }
-
-  xs_init.push_back(measured_x);
-
-  solver_->solve(xs_init, us_init, 500, false);
 }
 
 void OCP::solve(VectorXd measured_x) {
+
+  recede();
 
   warm_xs_ = solver_->get_xs();
   warm_xs_.erase(warm_xs_.begin());

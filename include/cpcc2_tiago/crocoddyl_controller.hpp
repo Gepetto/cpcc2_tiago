@@ -161,7 +161,7 @@ private:
 
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
-  void read_state_from_hardware();
+  void read_state_from_hardware(state &current_state);
 
   void update_target_from_subscriber(
       const std_msgs::msg::Float64MultiArray::SharedPtr msg);

@@ -113,6 +113,7 @@ private:
   struct ricatti_command {
     Eigen::VectorXd u_command;
     Eigen::VectorXd x0_command;
+    Eigen::VectorXd xinter_command;
     Eigen::VectorXd x1_command;
     Eigen::MatrixXd K_command;
 
@@ -152,7 +153,7 @@ private:
   Eigen::VectorXd command_;
   Eigen::VectorXd corrected_eff_command_;
 
-  Eigen::VectorXd interpolated_xs0_;
+  Eigen::VectorXd interpolated_xs_;
 
   ricatti_command ricatti_command_;
   ricatti_command interpolated_ricatti_command_;

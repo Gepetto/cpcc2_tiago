@@ -18,7 +18,7 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crocoddyl_shm");  // segment name
+      "crocoddyl_shm"); // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -56,7 +56,11 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  Ks_shm_->assign(Ks.data(), Ks.data() + Ks.size());
+  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
+    for (int j = 0; j < Ks_.cols(); j++) {
+      Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
+    }
+  }
   mutex_.unlock();
 }
 
@@ -117,7 +121,6 @@ int main() {
       VectorXd::Constant(model_.nv, 10.0);
 
   OCP_tiago_.buildCostsModel(costs_weights, w_hand, w_x);
-  OCP_tiago_.buildDiffActModel();
   OCP_tiago_.buildSolver();
 
   OCP_tiago_.printCosts();
@@ -173,8 +176,6 @@ int main() {
     xs0_ = OCP_tiago_.get_xs()[0];
     xs1_ = OCP_tiago_.get_xs()[1];
     Ks_ = OCP_tiago_.get_gains();
-
-    std::cout << "K" << Ks_ << std::endl;
 
     send_controller_result(us_, xs0_, xs1_, Ks_);
 

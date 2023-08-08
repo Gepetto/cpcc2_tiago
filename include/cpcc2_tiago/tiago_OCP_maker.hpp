@@ -46,7 +46,8 @@ private:
 
   boost::shared_ptr<StateMultibody> state_;
   boost::shared_ptr<ActuationModelFull> actuation_;
-  boost::shared_ptr<CostModelSum> costs_;
+  std::vector<boost::shared_ptr<CostModelSum>>
+      costs_; // one cost per running node
   boost::shared_ptr<ContactModelMultiple> contacts_;
 
   boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model_;
@@ -73,7 +74,8 @@ public:
   void buildCostsModel(std::map<std::string, double> costs_weights,
                        Eigen::VectorXd w_hand, Eigen::VectorXd w_x);
 
-  void buildDiffActModel();
+  void recede();
+
   void buildSolver();
 
   void createCallbacks(CallbackVerbose &callbacks);
@@ -89,7 +91,9 @@ public:
   void setSolverIterations(int iterations);
   void setLhId(FrameIndex lh_id);
 
-  void printCosts() { std::cout << *costs_ << std::endl; };
+  void printCosts() {
+    std::cout << "First cost: " << *(costs_[0]) << std::endl;
+  };
   void printProblem() { std::cout << *problem_ << std::endl; };
   void logSolverData();
 
@@ -102,7 +106,7 @@ public:
 
   StateMultibody get_state() { return *state_; }
   ActuationModelFull get_actuation() { return *actuation_; }
-  boost::shared_ptr<CostModelSum> get_costs() { return costs_; }
+  std::vector<boost::shared_ptr<CostModelSum>> get_costs() { return costs_; }
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
   SolverFDDP get_solver() { return *solver_; }
 };
