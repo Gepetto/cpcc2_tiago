@@ -18,7 +18,7 @@ void resize_vectors() {
 void init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only,
-      "crocoddyl_shm"); // segment name
+      "crocoddyl_shm");  // segment name
 
   // Find the vector using the c-string name
   x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
@@ -56,7 +56,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
+  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
     for (int j = 0; j < Ks_.cols(); j++) {
       Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
     }
@@ -82,16 +82,31 @@ int main() {
 
   init_shared_memory();
 
+  //  don't start solving until the first crocoddyl controller update is
+  //  done and the first target is received
+  while (is_first_update_done_ == false) {
+    mutex_.lock();
+    is_first_update_done_ = *is_first_update_done_shm_;
+    mutex_.unlock();
+    std::cout << "Waiting for first update" << std::endl;
+  }
+
+  std::cout << "First update done" << std::endl;
+
+  x_meas_ = read_controller_x();
+  target_ = read_controller_target();
+
   // Build the model from the urdf
   model_ = model_builder::build_model(joints_names_);
 
   data_ = Data(model_);
 
+  std::cout << "Model built" << std::endl;
+
   // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
-  VectorXd x0 = VectorXd::Zero(model_.nq + model_.nv);
-  OCP_tiago_.setX0(x0);
+  OCP_tiago_.setX0(x_meas_);
 
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
@@ -102,6 +117,8 @@ int main() {
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
   OCP_tiago_.setSolverIterations(OCP_solver_iterations_);
+
+  std::cout << "OCP settings set " << std::endl;
 
   std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
                                               {"xReg_weight", 1e-3},
@@ -121,7 +138,7 @@ int main() {
   OCP_tiago_.setCostsWeights(costs_weights);
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
 
-  OCP_tiago_.buildSolver();
+  OCP_tiago_.buildSolver(x_meas_);
 
   std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
             << std::endl;
@@ -130,33 +147,32 @@ int main() {
 
   std::cout << std::endl;
 
-  sleep(1);
+  std::cout << "First target: " << target_.transpose() << std::endl;
+
+  OCP_tiago_.setTarget(target_);
+  OCP_tiago_.solveFirst(x_meas_);
+  mutex_.lock();
+  *solver_started_shm_ = true;
+  mutex_.unlock();
+
+  us_ = OCP_tiago_.get_balancing_torques();
+  xs0_ = x_meas_;
+  xs1_ = x_meas_;
+  Ks_.setZero();
+
+  // std::cout << "us" << us_.transpose() << std::endl;
+
+  send_controller_result(us_, xs0_, xs1_, Ks_);
+
+  std::cout << "First solve done" << std::endl;
+
+  mutex_.lock();
+  *start_sending_cmd_shm_ = true;
+  mutex_.unlock();
 
   while (true) {
-    //  don't start solving until the first crocoddyl controller update is
-    //  done and the first target is received
-
-    if (is_first_update_done_ == false) {
-      mutex_.lock();
-      is_first_update_done_ = *is_first_update_done_shm_;
-      mutex_.unlock();
-      continue;
-    }
-
     x_meas_ = read_controller_x();
     target_ = read_controller_target();
-
-    if (is_first_update_done_ == true && solved_first_ == false) {
-      OCP_tiago_.setTarget(target_);
-      std::cout << "First target: " << target_.transpose() << std::endl;
-      // OCP_tiago_.solveFirst(x_meas_);
-      solved_first_ = true;
-      mutex_.lock();
-      *solver_started_shm_ = true;
-      mutex_.unlock();
-      std::cout << "First solve done" << std::endl;
-      continue;
-    }
 
     if (target_ != OCP_tiago_.get_target()) {
       OCP_tiago_.changeTarget(target_);
@@ -177,13 +193,6 @@ int main() {
     Ks_ = OCP_tiago_.get_gains();
 
     send_controller_result(us_, xs0_, xs1_, Ks_);
-
-    if (start_sending_cmd_ == false) {
-      mutex_.lock();
-      *start_sending_cmd_shm_ = true;
-      mutex_.unlock();
-      start_sending_cmd_ = true;
-    }
 
     current_t_ = std::chrono::high_resolution_clock::now();
 

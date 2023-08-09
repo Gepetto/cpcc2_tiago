@@ -4,7 +4,6 @@ namespace tiago_OCP {
 
 void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                          Eigen::VectorXd w_hand, double lh_cost_weight) {
-
   // Activation for the hand-placement cost
   boost::shared_ptr<ActivationModelWeightedQuad> activ_hand =
       boost::make_shared<ActivationModelWeightedQuad>(w_hand.cwiseAbs2());
@@ -23,7 +22,6 @@ void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
 
 void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                      Eigen::VectorXd w_x, double xReg_weight) {
-
   boost::shared_ptr<ActivationModelWeightedQuad> act_xreg =
       boost::make_shared<ActivationModelWeightedQuad>(w_x.cwiseAbs2());
 
@@ -40,12 +38,11 @@ void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
 
   // Adding the regularization terms to the cost
   cost.get()->addCost("xReg", x_reg_cost,
-                      xReg_weight); // 1e-3
+                      xReg_weight);  // 1e-3
 }
 
 void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                      double uReg_weight) {
-
   boost::shared_ptr<ResidualModelControl> res_mod_ctrl =
       boost::make_shared<ResidualModelControl>(state_, actuation_nu_);
 
@@ -53,12 +50,11 @@ void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
   // Adding the regularization terms to the cost
   cost.get()->addCost("uReg", u_reg_cost,
-                      uReg_weight); // 1e-3
+                      uReg_weight);  // 1e-3
 }
 
 void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                         double xBounds_weight) {
-
   // Adding the state limits penalization
   VectorXd x_lb(state_nq_ + state_nv_);
   x_lb << state_->get_lb().segment(1, state_nv_),
@@ -81,4 +77,4 @@ void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("xBounds", x_bounds, xBounds_weight);
 }
 
-} // namespace tiago_OCP
+}  // namespace tiago_OCP
