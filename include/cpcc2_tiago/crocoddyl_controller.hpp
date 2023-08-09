@@ -15,7 +15,7 @@
 #include "cpcc2_tiago/logger_OCP.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/shared_mutex.hpp"
-#include "cpcc2_tiago/tiago_OCP_maker.hpp"
+#include "cpcc2_tiago/tiago_OCP.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"

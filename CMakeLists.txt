@@ -57,7 +57,8 @@ add_library(
   crocoddyl_controller
   SHARED
   src/crocoddyl_controller.cpp
-  src/tiago_OCP_maker.cpp
+  src/tiago_OCP.cpp
+  src/tiago_OCP_costs.cpp
   src/model_builder.cpp
   src/logger_OCP.cpp
 
