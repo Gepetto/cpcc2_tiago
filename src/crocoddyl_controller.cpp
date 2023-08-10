@@ -6,40 +6,16 @@ void CrocoddylController::init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
       boost::interprocess::open_only, "crocoddyl_shm");
 
-  // Initialize shared memory STL-compatible allocator
-  const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
-
   // Construct a shared memory
-  x_meas_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // object name
-      (alloc_inst);  // first ctor parameter
-  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
-  xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
-  xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
-  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
-  target_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
-  solver_started_shm_ =
-      crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
+  // Find the vector using the c-string name
+  x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
+  us_shm_ = crocoddyl_shm_.find<shared_vector>("us_shm").first;
+  xs0_shm_ = crocoddyl_shm_.find<shared_vector>("xs0_shm").first;
+  xs1_shm_ = crocoddyl_shm_.find<shared_vector>("xs1_shm").first;
+  Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
+  target_shm_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
   is_first_update_done_shm_ =
-      crocoddyl_shm_.construct<bool>("is_first_update_done_shm")(false);
-
-  x_meas_shm_->resize(x_meas_.size());
-  std::fill(x_meas_shm_->begin(), x_meas_shm_->end(), 0.0);
-
-  us_shm_->resize(us_.size());
-  std::fill(us_shm_->begin(), us_shm_->end(), 0.0);
-
-  xs0_shm_->resize(xs0_.size());
-  std::fill(xs0_shm_->begin(), xs0_shm_->end(), 0.0);
-
-  xs1_shm_->resize(xs1_.size());
-  std::fill(xs1_shm_->begin(), xs1_shm_->end(), 0.0);
-
-  Ks_shm_->resize(Ks_.size());
-  std::fill(Ks_shm_->begin(), Ks_shm_->end(), 0.0);
-
-  target_shm_->resize(3);
+      crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
 }
 
 void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
@@ -206,7 +182,7 @@ CrocoddylController::command_interface_configuration() const {
         hardware_interface::HW_IF_VELOCITY + "_0");
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
@@ -241,8 +217,9 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/,
+                            const rclcpp::Duration & /*period*/) {
   read_state_from_hardware(current_state_);
 
   x_meas_ << current_state_.position, current_state_.velocity;
@@ -250,13 +227,13 @@ controller_interface::return_type CrocoddylController::update(
   // for first solver iteration, send the measured state to the solver
   send_solver_x(x_meas_);
 
-  model_builder::updateReducedModel(
-      x_meas_, model_,
-      data_);  // set the model pos to the measured
-               // value to get the end effector pos
+  model_builder::updateReducedModel(x_meas_, model_,
+                                    data_); // set the model pos to the
+                                            // measured
+                                            // value to get the end effector pos
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
+                          .translation(); // get the end
+                                          // effector pos
 
   if (is_first_update_) {
     is_first_update_ = false;
@@ -336,7 +313,7 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   }
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

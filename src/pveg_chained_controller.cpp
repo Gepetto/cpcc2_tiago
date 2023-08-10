@@ -3,14 +3,14 @@
 namespace cpcc2_tiago {
 
 void PvegChainedController::init_shared_memory() {
-  boost::interprocess::shared_memory_object::remove("crocoddyl_shm");
 
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::create_only, "crocoddyl_shm", 65536);
+      boost::interprocess::open_only,
+      "crocoddyl_shm"); // segment name
 
+  start_sending_cmd_shm_ =
+      crocoddyl_shm_.find<bool>("start_sending_cmd_shm").first;
   // Find the vector using the c-string name
-  start_sending_cmd_smh_ =
-      crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
 }
 
 // Create a parameter listener to listen to published ros2 param
@@ -108,8 +108,6 @@ controller_interface::CallbackReturn
 cpcc2_tiago::PvegChainedController::on_init() {
   // In the init we try do read the parameters
 
-  init_shared_memory();
-
   try {
     declare_parameters();
   } catch (const std::exception &e) {
@@ -122,6 +120,19 @@ cpcc2_tiago::PvegChainedController::on_init() {
   if (ret != controller_interface::CallbackReturn::SUCCESS) {
     return ret;
   }
+
+  while (true) {
+    if (mutex_.try_lock()) {
+      break;
+    }
+
+    if (!mutex_.timed_lock(boost::get_system_time() +
+                           boost::posix_time::milliseconds(10))) {
+      mutex_.unlock();
+    }
+  }
+
+  init_shared_memory();
 
   model_ = model_builder::build_model(params_.joints);
 
@@ -186,7 +197,7 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
         params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY + "_0",
         &reference_interfaces_[2 * n_joints_ + i]));
   }
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  for (int i = 0; i < n_joints_; i++) { // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       reference_interfaces.push_back(hardware_interface::CommandInterface(
           get_node()->get_name(),
@@ -245,7 +256,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   if (start_sending_cmd_ == false) {
     mutex_.lock();
-    start_sending_cmd_ = *start_sending_cmd_smh_;
+    start_sending_cmd_ = *start_sending_cmd_shm_;
     mutex_.unlock();
     return true;
   }
@@ -273,7 +284,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
   } else {
     //    interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
-        eff_command_);  // compute ddq
+        eff_command_); // compute ddq
 
     interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
                          .to_chrono<std::chrono::nanoseconds>()
@@ -304,15 +315,15 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
   double command_K;
 
   for (int i = 0; i < n_joints_; i++) {
-    command_u = reference_interfaces_[i];  // arm_i_joint/effort
+    command_u = reference_interfaces_[i]; // arm_i_joint/effort
     // check if NaN, if nan set to current state to avoid large jump in torque
     ric_cmd.u_command[i] = (command_u == command_u) ? command_u : 0;
 
-    command_q0 = reference_interfaces_[n_joints_ + i];  // arm_i_joint/pos0
+    command_q0 = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos0
     ric_cmd.x0_command[i] =
         (command_q0 == command_q0) ? command_q0 : current_state_.position[i];
 
-    command_v0 = reference_interfaces_[2 * n_joints_ + i];  // arm_i_joint/vel0
+    command_v0 = reference_interfaces_[2 * n_joints_ + i]; // arm_i_joint/vel0
     ric_cmd.x0_command[n_joints_ + i] =
         (command_v0 == command_v0) ? command_v0 : current_state_.velocity[i];
 
@@ -323,7 +334,7 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
 
     command_q1 =
         reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                              i];  // arm_i_joint/pos1
+                              i]; // arm_i_joint/pos1
     ric_cmd.x1_command[i] =
         (command_q1 == command_q1) ? command_q1 : command_q0;
 
@@ -342,8 +353,8 @@ void PvegChainedController::read_state_from_hardware(state &curr_state) {
   }
 }
 
-Eigen::VectorXd PvegChainedController::correct_efforts_for_friction(
-    state curr_state) {
+Eigen::VectorXd
+PvegChainedController::correct_efforts_for_friction(state curr_state) {
   Eigen::VectorXd corr_eff(n_joints_);
   for (int i = 0; i < n_joints_; i++) {
     corr_eff[i] =
@@ -354,8 +365,9 @@ Eigen::VectorXd PvegChainedController::correct_efforts_for_friction(
   return corr_eff;
 }
 
-Eigen::VectorXd PvegChainedController::compute_ricatti_command(
-    ricatti_command ric_cmd, Eigen::VectorXd x) {
+Eigen::VectorXd
+PvegChainedController::compute_ricatti_command(ricatti_command ric_cmd,
+                                               Eigen::VectorXd x) {
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.xinter_command - x);
 }
 
@@ -380,8 +392,9 @@ Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
   return x;
 }
 
-Eigen::VectorXd PvegChainedController::adapt_command_to_type(
-    Eigen::VectorXd eff_command, ricatti_command ric_cmd) {
+Eigen::VectorXd
+PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
+                                             ricatti_command ric_cmd) {
   Eigen::VectorXd command(n_joints_);
   for (int i = 0; i < n_joints_; i++) {
     if (params_.pveg_joints_command_type[i] == "effort") {
@@ -395,7 +408,7 @@ Eigen::VectorXd PvegChainedController::adapt_command_to_type(
   return command;
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

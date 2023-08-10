@@ -138,7 +138,7 @@ private:
 
   boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
-  bool *start_sending_cmd_smh_;
+  bool *start_sending_cmd_shm_;
   bool start_sending_cmd_ = false;
 
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);

@@ -16,22 +16,48 @@ void resize_vectors() {
 }
 
 void init_shared_memory() {
-  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::open_only,
-      "crocoddyl_shm");  // segment name
 
-  // Find the vector using the c-string name
-  x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
-  us_shm_ = crocoddyl_shm_.find<shared_vector>("us_shm").first;
-  xs0_shm_ = crocoddyl_shm_.find<shared_vector>("xs0_shm").first;
-  xs1_shm_ = crocoddyl_shm_.find<shared_vector>("xs1_shm").first;
-  Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
-  target_smh_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
-  solver_started_shm_ = crocoddyl_shm_.find<bool>("solver_started_shm").first;
+  boost::interprocess::shared_memory_object::remove("crocoddyl_shm");
+
+  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
+      boost::interprocess::create_only, "crocoddyl_shm", 65536);
+
+  // Initialize shared memory STL-compatible allocator
+  const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
+
+  x_meas_shm_ =
+      crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
+      (alloc_inst); // first ctor parameter
+  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
+  xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
+  xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
+  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
+  target_shm_ =
+      crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
+  solver_started_shm_ =
+      crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
   is_first_update_done_shm_ =
-      crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
+      crocoddyl_shm_.construct<bool>("is_first_update_done_shm")(false);
+
   start_sending_cmd_shm_ =
-      crocoddyl_shm_.find<bool>("start_sending_cmd_shm").first;
+      crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
+
+  x_meas_shm_->resize(x_meas_.size());
+  std::fill(x_meas_shm_->begin(), x_meas_shm_->end(), 0.0);
+
+  us_shm_->resize(us_.size());
+  std::fill(us_shm_->begin(), us_shm_->end(), 0.0);
+
+  xs0_shm_->resize(xs0_.size());
+  std::fill(xs0_shm_->begin(), xs0_shm_->end(), 0.0);
+
+  xs1_shm_->resize(xs1_.size());
+  std::fill(xs1_shm_->begin(), xs1_shm_->end(), 0.0);
+
+  Ks_shm_->resize(Ks_.size());
+  std::fill(Ks_shm_->begin(), Ks_shm_->end(), 0.0);
+
+  target_shm_->resize(3);
 }
 
 Eigen::VectorXd read_controller_x() {
@@ -45,7 +71,7 @@ Eigen::VectorXd read_controller_x() {
 Eigen::Vector3d read_controller_target() {
   mutex_.lock();
   Eigen::Vector3d target =
-      Eigen::Map<Eigen::Vector3d>(target_smh_->data(), target_smh_->size());
+      Eigen::Map<Eigen::Vector3d>(target_shm_->data(), target_shm_->size());
   mutex_.unlock();
   return target;
 }
@@ -56,7 +82,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
+  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
     for (int j = 0; j < Ks_.cols(); j++) {
       Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
     }
@@ -66,6 +92,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
 
 int main() {
   read_params();
+  resize_vectors();
 
   while (true) {
     if (mutex_.try_lock()) {
@@ -84,17 +111,17 @@ int main() {
 
   //  don't start solving until the first crocoddyl controller update is
   //  done and the first target is received
+
+  std::cout << "Waiting for first update" << std::endl;
   while (is_first_update_done_ == false) {
     mutex_.lock();
     is_first_update_done_ = *is_first_update_done_shm_;
     mutex_.unlock();
-    std::cout << "Waiting for first update" << std::endl;
   }
 
   std::cout << "First update done" << std::endl;
 
   x_meas_ = read_controller_x();
-  target_ = read_controller_target();
 
   // Build the model from the urdf
   model_ = model_builder::build_model(joints_names_);
@@ -145,20 +172,22 @@ int main() {
 
   std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
 
-  std::cout << std::endl;
+  target_ = read_controller_target();
 
   std::cout << "First target: " << target_.transpose() << std::endl;
 
   OCP_tiago_.setTarget(target_);
+  OCP_tiago_.printCosts();
+
   OCP_tiago_.solveFirst(x_meas_);
   mutex_.lock();
   *solver_started_shm_ = true;
   mutex_.unlock();
 
-  us_ = OCP_tiago_.get_balancing_torques();
-  xs0_ = x_meas_;
-  xs1_ = x_meas_;
-  Ks_.setZero();
+  us_ = OCP_tiago_.get_us()[0];
+  xs0_ = OCP_tiago_.get_xs()[0];
+  xs1_ = OCP_tiago_.get_xs()[1];
+  Ks_ = OCP_tiago_.get_gains();
 
   // std::cout << "us" << us_.transpose() << std::endl;
 
@@ -175,6 +204,7 @@ int main() {
     target_ = read_controller_target();
 
     if (target_ != OCP_tiago_.get_target()) {
+      std::cout << "New target: " << target_.transpose() << std::endl;
       OCP_tiago_.changeTarget(target_);
     }
 
@@ -192,22 +222,24 @@ int main() {
     xs1_ = OCP_tiago_.get_xs()[1];
     Ks_ = OCP_tiago_.get_gains();
 
+    std::cout << "us" << us_.transpose() << std::endl;
+
     send_controller_result(us_, xs0_, xs1_, Ks_);
 
     current_t_ = std::chrono::high_resolution_clock::now();
 
-    if (current_t_.time_since_epoch().count() % 10 == 0) {
-      std::cout << "Solver frequency: " << std::fixed << std::setprecision(2)
-                << 1 / (diff_.count() * 1e-9) << " Hz, solving time: "
-                << std::chrono::duration_cast<std::chrono::microseconds>(
-                       current_t_ - start_solving_time_)
-                           .count() /
-                       1000.0
+    // if (current_t_.time_since_epoch().count() % 10 == 0) {
+    //   std::cout << "Solver frequency: " << std::fixed << std::setprecision(2)
+    //             << 1 / (diff_.count() * 1e-9) << " Hz, solving time: "
+    //             << std::chrono::duration_cast<std::chrono::microseconds>(
+    //                    current_t_ - start_solving_time_)
+    //                        .count() /
+    //                    1000.0
 
-                << " ms" << std::endl;
+    //             << " ms" << std::endl;
 
-      std::cout << "\x1b[A";
-    }
+    //   std::cout << "\x1b[A";
+    // }
 
     last_solving_time_ = current_t_;
   }

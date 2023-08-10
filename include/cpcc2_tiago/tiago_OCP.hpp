@@ -32,7 +32,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
- private:
+private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
@@ -46,8 +46,6 @@ class OCP {
 
   boost::shared_ptr<StateMultibody> state_;
   boost::shared_ptr<ActuationModelFull> actuation_;
-  std::vector<boost::shared_ptr<CostModelSum>>
-      costs_;  // one cost per running node
   boost::shared_ptr<ContactModelMultiple> contacts_;
 
   boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model_;
@@ -72,7 +70,7 @@ class OCP {
 
   FrameIndex lh_id_;
 
- public:
+public:
   OCP();
   OCP(const Model model, const Data data);
 
@@ -95,20 +93,18 @@ class OCP {
 
   void buildSolver(Eigen::VectorXd x0);
 
-  void createCallbacks(CallbackVerbose &callbacks);
-
   void solveFirst(VectorXd measured_x);
   void solve(VectorXd measured_x);
 
-  boost::shared_ptr<crocoddyl::ActionModelAbstract> ama(
-      const unsigned long time);
-  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> iam(
-      const unsigned long time);
-  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics> dam(
-      const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionModelAbstract>
+  ama(const unsigned long time);
+  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
+  iam(const unsigned long time);
+  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
+  dam(const unsigned long time);
   boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
-  boost::shared_ptr<crocoddyl::ActionDataAbstract> ada(
-      const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionDataAbstract>
+  ada(const unsigned long time);
 
   void setTarget(Vector3d target);
   void changeTarget(Vector3d target);
@@ -131,6 +127,9 @@ class OCP {
   void setLhId(FrameIndex lh_id) { lh_id_ = lh_id; };
 
   void printProblem() { std::cout << *problem_ << std::endl; };
+  void printCosts() {
+    std::cout << "First cost: " << *(costs(0)) << std::endl;
+  };
   void logSolverData();
 
   const Vector3d get_target() { return (target_); };
@@ -145,6 +144,6 @@ class OCP {
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
   SolverFDDP get_solver() { return *solver_; }
 };
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP
 
 #endif
