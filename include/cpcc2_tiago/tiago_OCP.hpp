@@ -32,7 +32,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
-private:
+ private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
@@ -70,7 +70,7 @@ private:
 
   FrameIndex lh_id_;
 
-public:
+ public:
   OCP();
   OCP(const Model model, const Data data);
 
@@ -96,15 +96,15 @@ public:
   void solveFirst(VectorXd measured_x);
   void solve(VectorXd measured_x);
 
-  boost::shared_ptr<crocoddyl::ActionModelAbstract>
-  ama(const unsigned long time);
-  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-  iam(const unsigned long time);
-  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
-  dam(const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionModelAbstract> ama(
+      const unsigned long time);
+  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> iam(
+      const unsigned long time);
+  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics> dam(
+      const unsigned long time);
   boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
-  boost::shared_ptr<crocoddyl::ActionDataAbstract>
-  ada(const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionDataAbstract> ada(
+      const unsigned long time);
 
   void setTarget(Vector3d target);
   void changeTarget(Vector3d target);
@@ -130,7 +130,6 @@ public:
   void printCosts() {
     std::cout << "First cost: " << *(costs(0)) << std::endl;
   };
-  void logSolverData();
 
   const Vector3d get_target() { return (target_); };
   double get_time_step() { return (time_step_); };
@@ -144,6 +143,6 @@ public:
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
   SolverFDDP get_solver() { return *solver_; }
 };
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP
 
 #endif
