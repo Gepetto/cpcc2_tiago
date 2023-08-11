@@ -114,6 +114,8 @@ class OCP {
   void setTimeStep(double time_step) { time_step_ = time_step; };
   void setHorizonLength(int horizon_length) {
     horizon_length_ = horizon_length;
+    warm_xs_.resize(horizon_length_ + 1);
+    warm_us_.resize(horizon_length_);
   };
   void setSolverIterations(int iterations) { solver_iterations_ = iterations; };
 

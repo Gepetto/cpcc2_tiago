@@ -117,17 +117,15 @@ void OCP::changeTarget(Vector3d target) {
 
 void OCP::solveFirst(VectorXd measured_x) {
   // horizon settings
-  std::vector<VectorXd> xs_init;
-  std::vector<VectorXd> us_init;
 
   for (std::size_t i = 0; i < horizon_length_; i++) {
-    xs_init.push_back(measured_x);
+    warm_xs_[i] = measured_x;
 
-    us_init.push_back(balancing_torques_);
+    warm_us_[i] = balancing_torques_;
   }
-  xs_init.push_back(measured_x);
+  warm_xs_[horizon_length_] = measured_x;
 
-  solver_->solve(xs_init, us_init, 1000, false);
+  solver_->solve(warm_xs_, warm_us_, 1000, false);
 }
 
 void OCP::recede() {
@@ -154,13 +152,20 @@ void OCP::solve(VectorXd measured_x) {
   warm_xs_[0] = measured_x;
   warm_xs_.push_back(warm_xs_[warm_xs_.size() - 1]);
 
+  std::cout << warm_xs_.size() << std::endl;
+
+  // std::cout << "warm_xs: " << std::endl;
+  // for (std::size_t i = 0; i < horizon_length_; i++) {
+  //   std::cout << warm_xs_[i].transpose() << std::endl;
+  // }
+
   warm_us_ = solver_->get_us();
   warm_us_.erase(warm_us_.begin());
   warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
 
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
-  solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
+  solver_->solve(warm_xs_, warm_us_, solver_iterations_);
 }
 
 boost::shared_ptr<crocoddyl::ActionModelAbstract> OCP::ama(
