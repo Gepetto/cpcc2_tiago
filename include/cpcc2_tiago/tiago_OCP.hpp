@@ -32,7 +32,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
- private:
+private:
   void initOCPParms();
 
   boost::shared_ptr<ShootingProblem> problem_;
@@ -70,7 +70,7 @@ class OCP {
 
   FrameIndex lh_id_;
 
- public:
+public:
   OCP();
   OCP(const Model model, const Data data);
 
@@ -89,24 +89,25 @@ class OCP {
 
   void recede();
 
-  Eigen::VectorXd setBalancingTorques(Eigen::VectorXd x0);
+  Eigen::VectorXd computeBalancingTorques(Eigen::VectorXd x0);
 
-  void buildSolver(Eigen::VectorXd x0);
+  void buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target);
 
   void solveFirst(VectorXd measured_x);
   void solve(VectorXd measured_x);
 
-  boost::shared_ptr<crocoddyl::ActionModelAbstract> ama(
-      const unsigned long time);
-  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> iam(
-      const unsigned long time);
-  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics> dam(
-      const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionModelAbstract>
+  ama(const unsigned long time);
+  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
+  iam(const unsigned long time);
+  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
+  dam(const unsigned long time);
   boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
-  boost::shared_ptr<crocoddyl::ActionDataAbstract> ada(
-      const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionDataAbstract>
+  ada(const unsigned long time);
 
   void setTarget(Vector3d target);
+
   void changeTarget(Vector3d target);
   void updateRunModReference();
 
@@ -145,6 +146,6 @@ class OCP {
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
   SolverFDDP get_solver() { return *solver_; }
 };
-};  // namespace tiago_OCP
+}; // namespace tiago_OCP
 
 #endif

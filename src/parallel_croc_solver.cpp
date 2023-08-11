@@ -25,8 +25,8 @@ void init_shared_memory() {
   const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
 
   x_meas_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // object name
-      (alloc_inst);  // first ctor parameter
+      crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
+      (alloc_inst); // first ctor parameter
   us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
   xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
   xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
@@ -81,7 +81,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
+  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
     for (int j = 0; j < Ks_.cols(); j++) {
       Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
     }
@@ -164,8 +164,6 @@ int main() {
   OCP_tiago_.setCostsWeights(costs_weights);
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
 
-  OCP_tiago_.buildSolver(x_meas_);
-
   std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
             << std::endl;
 
@@ -175,13 +173,13 @@ int main() {
 
   std::cout << "First target: " << target_.transpose() << std::endl;
 
-  OCP_tiago_.setTarget(target_);
-  OCP_tiago_.printCosts();
+  OCP_tiago_.buildSolver(x_meas_, target_);
 
-  OCP_tiago_.solveFirst(x_meas_);
   mutex_.lock();
   *solver_started_shm_ = true;
   mutex_.unlock();
+
+  OCP_tiago_.printCosts();
 
   us_ = OCP_tiago_.get_us()[0];
   xs0_ = OCP_tiago_.get_xs()[0];
@@ -197,18 +195,18 @@ int main() {
   mutex_.unlock();
 
   while (true) {
-    x_meas_ = read_controller_x();
-    target_ = read_controller_target();
-
-    if (target_ != OCP_tiago_.get_target()) {
-      std::cout << "New target: " << target_.transpose() << std::endl;
-      std::cout << std::endl;
-      OCP_tiago_.changeTarget(target_);
-    }
 
     diff_ = std::chrono::high_resolution_clock::now() - last_solving_time_;
     if (diff_.count() * 1e-9 < 1 / OCP_solver_frequency_) {
       continue;
+    }
+
+    x_meas_ = read_controller_x();
+    target_ = read_controller_target();
+
+    if (target_ != OCP_tiago_.get_target()) {
+
+      OCP_tiago_.changeTarget(target_);
     }
 
     start_solving_time_ = std::chrono::high_resolution_clock::now();
