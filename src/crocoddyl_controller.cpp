@@ -89,9 +89,6 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   us_.resize(n_joints_);
   Ks_.resize(n_joints_, 2 * n_joints_);
 
-  enable_logging_ = params_.enable_logging;
-  logging_frequency_ = params_.logging_frequency;
-
   // same for the current state
   current_state_.position.resize(n_joints_);
   current_state_.velocity.resize(n_joints_);
@@ -125,6 +122,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  // test the access to the mutex
   while (true) {
     if (mutex_.try_lock()) {
       break;
@@ -138,6 +136,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   mutex_.unlock();
 
+  // Initialize shared memory
   init_shared_memory();
 
   // Build the model from the urdf
@@ -147,6 +146,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   lh_id_ = model_.getFrameId("hand_tool_joint");
 
+  // Initialize the topic to receive new targets
   target_subscriber_ =
       get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
           "~/target", 10,
@@ -165,24 +165,31 @@ CrocoddylController::command_interface_configuration() const {
   command_interfaces_config.type =
       controller_interface::interface_configuration_type::INDIVIDUAL;
   // Claiming Command interface exported as reference interface by
-  // PvegContrller
+  // PvegController
+
+  // effort interface
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back("pveg_chained_controller/" +
                                               joints_names_[i] + "/" +
                                               hardware_interface::HW_IF_EFFORT);
   }
+
+  // position interfaces
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + joints_names_[i] + "/" +
         hardware_interface::HW_IF_POSITION + "_0");
   }
+
+  // velocity interfaces
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + joints_names_[i] + "/" +
         hardware_interface::HW_IF_VELOCITY + "_0");
   }
 
-  for (int i = 0; i < n_joints_; i++) {  // all the gains
+  // gain interfaces
+  for (int i = 0; i < n_joints_; i++) {
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_config.names.push_back(
           "pveg_chained_controller/" + joints_names_[i] + "/" + "gain" +
@@ -190,12 +197,14 @@ CrocoddylController::command_interface_configuration() const {
     }
   }
 
+  // next position interfaces
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + joints_names_[i] + "/" +
         hardware_interface::HW_IF_POSITION + "_1");
   }
 
+  // next velocity interfaces
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_config.names.push_back(
         "pveg_chained_controller/" + joints_names_[i] + "/" +
@@ -217,8 +226,9 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
+controller_interface::return_type
+CrocoddylController::update(const rclcpp::Time & /*time*/,
+                            const rclcpp::Duration & /*period*/) {
   read_state_from_hardware(current_state_);
 
   x_meas_ << current_state_.position, current_state_.velocity;
@@ -226,14 +236,13 @@ controller_interface::return_type CrocoddylController::update(
   // for first solver iteration, send the measured state to the solver
   send_solver_x(x_meas_);
 
-  model_builder::updateReducedModel(
-      x_meas_, model_,
-      data_);  // set the model pos to the
-               // measured
-               // value to get the end effector pos
+  // update the model with the new state
+  model_builder::updateReducedModel(x_meas_, model_, data_);
+
+  // get the end effector position
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation();  // get the end
-                                           // effector pos
+                          .translation(); // get the end
+                                          // effector pos
 
   if (is_first_update_) {
     is_first_update_ = false;
@@ -313,7 +322,7 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   }
 }
 
-}  // namespace cpcc2_tiago
+} // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 

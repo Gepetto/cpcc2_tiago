@@ -33,8 +33,6 @@ using namespace Eigen;
 namespace tiago_OCP {
 class OCP {
 private:
-  void initOCPParms();
-
   boost::shared_ptr<ShootingProblem> problem_;
 
   boost::shared_ptr<SolverFDDP> solver_;
@@ -74,42 +72,7 @@ public:
   OCP();
   OCP(const Model model, const Data data);
 
-  void defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
-                      Eigen::VectorXd w_hand, double lh_cost_weight);
-  void defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
-                  Eigen::VectorXd w_x, double xReg_weight);
-  void defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
-                  double uReg_weight);
-
-  void defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
-                     double xBounds_weight);
-
-  boost::shared_ptr<ActionModelAbstract> buildRunningModel();
-  boost::shared_ptr<ActionModelAbstract> buildTerminalModel();
-
-  void recede();
-
-  Eigen::VectorXd computeBalancingTorques(Eigen::VectorXd x0);
-
-  void buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target);
-
-  void solveFirst(VectorXd measured_x);
-  void solve(VectorXd measured_x);
-
-  boost::shared_ptr<crocoddyl::ActionModelAbstract>
-  ama(const unsigned long time);
-  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-  iam(const unsigned long time);
-  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
-  dam(const unsigned long time);
-  boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
-  boost::shared_ptr<crocoddyl::ActionDataAbstract>
-  ada(const unsigned long time);
-
-  void setTarget(Vector3d target);
-
-  void changeTarget(Vector3d target);
-  void updateRunModReference();
+  void initOCPParms();
 
   void setX0(VectorXd x0) { x0_ = x0; };
   void setTimeStep(double time_step) { time_step_ = time_step; };
@@ -129,10 +92,45 @@ public:
   };
   void setLhId(FrameIndex lh_id) { lh_id_ = lh_id; };
 
-  void printProblem() { std::cout << *problem_ << std::endl; };
+  void defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+                      Eigen::VectorXd w_hand, double lh_cost_weight);
+  void defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+                  Eigen::VectorXd w_x, double xReg_weight);
+  void defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+                  double uReg_weight);
+
+  void defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+                     double xBounds_weight);
+
+  boost::shared_ptr<ActionModelAbstract> buildRunningModel();
+  boost::shared_ptr<ActionModelAbstract> buildTerminalModel();
+
+  void recede();
+  void updateRunModReference();
+
+  Eigen::VectorXd computeBalancingTorques(Eigen::VectorXd x0);
+
+  void buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target);
+
+  void solveFirst(VectorXd measured_x);
+  void solve(VectorXd measured_x);
+
+  void setTarget(Vector3d target);
+  void changeTarget(Vector3d target);
+
   void printCosts() {
     std::cout << "First cost: " << *(costs(0)) << std::endl;
   };
+
+  boost::shared_ptr<crocoddyl::ActionModelAbstract>
+  ama(const unsigned long time);
+  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
+  iam(const unsigned long time);
+  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
+  dam(const unsigned long time);
+  boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
+  boost::shared_ptr<crocoddyl::ActionDataAbstract>
+  ada(const unsigned long time);
 
   const Vector3d get_target() { return (target_); };
   double get_time_step() { return (time_step_); };

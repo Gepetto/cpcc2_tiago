@@ -75,16 +75,23 @@ bool is_first_update_done_ = false;
 bool *start_sending_cmd_shm_;
 bool start_sending_cmd_ = false;
 
+/// @brief Read parameters
 void read_params();
+
+/// @brief Resize vectors
 void resize_vectors();
 
-void initilize_shared_vectors();
+/// @brief Create the shared memory
+void init_shared_memory();
 
+/// @brief Read x from the shared memory
 Eigen::VectorXd read_controller_x();
+
+/// @brief Read target from the shared memory
 Eigen::Vector3d read_controller_target();
+
+/// @brief Send the result of the controller to the shared memory
 void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
                             Eigen::VectorXd xs1, Eigen::MatrixXd Ks);
-
-void init_shared_memory();
 
 #endif // PARALLEL_CROC_SOLVER_HPP

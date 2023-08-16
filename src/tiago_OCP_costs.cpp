@@ -37,8 +37,7 @@ void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                                             res_mod_state_xreg);
 
   // Adding the regularization terms to the cost
-  cost.get()->addCost("xReg", x_reg_cost,
-                      xReg_weight);  // 1e-3
+  cost.get()->addCost("xReg", x_reg_cost, xReg_weight);
 }
 
 void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
@@ -49,8 +48,7 @@ void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   boost::shared_ptr<CostModelResidual> u_reg_cost =
       boost::make_shared<CostModelResidual>(state_, res_mod_ctrl);
   // Adding the regularization terms to the cost
-  cost.get()->addCost("uReg", u_reg_cost,
-                      uReg_weight);  // 1e-3
+  cost.get()->addCost("uReg", u_reg_cost, uReg_weight);
 }
 
 void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
@@ -77,4 +75,4 @@ void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("xBounds", x_bounds, xBounds_weight);
 }
 
-}  // namespace tiago_OCP
+} // namespace tiago_OCP

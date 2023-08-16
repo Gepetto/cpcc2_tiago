@@ -33,6 +33,7 @@ void init_shared_memory() {
   Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
   target_shm_ =
       crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
+
   solver_started_shm_ =
       crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
   is_first_update_done_shm_ =
@@ -140,11 +141,12 @@ int main() {
   OCP_horizon_length_ = params_.OCP_horizon_length;
   OCP_time_step_ = params_.OCP_time_step;
   OCP_solver_iterations_ = params_.OCP_solver_iterations;
+
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
   OCP_tiago_.setSolverIterations(OCP_solver_iterations_);
 
-  std::cout << "OCP settings set " << std::endl;
+  std::cout << "OCP settings set." << std::endl;
 
   std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
                                               {"xReg_weight", 1e-3},
@@ -164,17 +166,18 @@ int main() {
   OCP_tiago_.setCostsWeights(costs_weights);
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
 
-  std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
-            << std::endl;
-
-  std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
-
   target_ = read_controller_target();
 
   std::cout << "First target: " << target_.transpose() << std::endl;
 
   OCP_tiago_.buildSolver(x_meas_, target_);
 
+  std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
+            << std::endl;
+
+  std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
+
+  OCP_tiago_.solveFirst(x_meas_);
   mutex_.lock();
   *solver_started_shm_ = true;
   mutex_.unlock();

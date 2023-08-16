@@ -60,7 +60,6 @@ add_library(
   src/tiago_OCP.cpp
   src/tiago_OCP_costs.cpp
   src/model_builder.cpp
-  src/logger_OCP.cpp
 
 )
 target_include_directories(
@@ -127,7 +126,6 @@ add_library(
   SHARED
   src/pveg_chained_controller.cpp
   src/model_builder.cpp
-  src/logger_OCP.cpp
 )
 target_include_directories(
   pveg_chained_controller

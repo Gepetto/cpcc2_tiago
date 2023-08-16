@@ -12,7 +12,6 @@
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
-#include "cpcc2_tiago/logger_OCP.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/shared_mutex.hpp"
 #include "cpcc2_tiago/tiago_OCP.hpp"
@@ -86,6 +85,9 @@ private:
   std::shared_ptr<ParamListener> param_listener_;
   Params params_;
 
+  int n_joints_;
+  std::vector<std::string> joints_names_;
+
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                           "crocoddyl_mutex"};
 
@@ -136,13 +138,6 @@ private:
 
   Eigen::Vector3d end_effector_pos_;
 
-  int n_joints_;
-  std::vector<std::string> joints_names_;
-
-  bool enable_logging_;
-  logger_OCP::logger logger_;
-  double logging_frequency_;
-
   /// @brief all types of state interface, in our case effort, velocity,
   /// position
   std::vector<std::string> state_interface_types_;
@@ -150,24 +145,41 @@ private:
   /// @brief Current state at time t, overwritten next timestep
   state current_state_;
 
+  /// @brief Initialize the shared memory, find the vector and tie them to
+  /// variables
   void init_shared_memory();
 
+  /// @brief Send the solver the current state
+  /// @param x the current state
   void send_solver_x(Eigen::VectorXd x);
+
+  /// @brief Read the solver results from the shared memory
   void read_solver_results();
 
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
+  /// @param current_state the current state to be updated
   void read_state_from_hardware(state &current_state);
 
+  /// @brief Callback to update the target from the subscriber
+  /// @param msg the message containing the target
   void update_target_from_subscriber(
       const std_msgs::msg::Float64MultiArray::SharedPtr msg);
 
-  /// @brief set the effort command
-  /// @param interface_command command_interface to send the command to
-  /// @param command_eff vector of the desired torque
+  /// @brief Set u command to the reference interfaces
+  /// @param command_u the command to be set
   void set_u_command(Eigen::VectorXd command_u);
+
+  /// @brief Set x0 command to the reference interfaces
+  /// @param command_x the command to be set
   void set_x0_command(Eigen::VectorXd command_x);
+
+  /// @brief Set x1 command to the reference interfaces
+  /// @param command_x the command to be set
   void set_x1_command(Eigen::VectorXd command_x);
+
+  /// @brief Set K command to the reference interfaces
+  /// @param command_K the command to be set
   void set_K_command(Eigen::MatrixXd comman_K);
 };
 } // namespace cpcc2_tiago
