@@ -175,35 +175,35 @@ void OCP::solve(VectorXd measured_x) {
 }
 
 boost::shared_ptr<crocoddyl::ActionModelAbstract>
-OCP::ama(const unsigned long time) {
-  if (time == horizon_length_) {
+OCP::ama(const unsigned long node_id) {
+  if (node_id == horizon_length_) {
     return solver_->get_problem()->get_terminalModel();
   } else {
-    return solver_->get_problem()->get_runningModels()[time];
+    return solver_->get_problem()->get_runningModels()[node_id];
   }
 }
 
 boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-OCP::iam(const unsigned long time) {
+OCP::iam(const unsigned long node_id) {
   return boost::static_pointer_cast<crocoddyl::IntegratedActionModelEuler>(
-      ama(time));
+      ama(node_id));
 }
 
 boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
-OCP::dam(const unsigned long time) {
+OCP::dam(const unsigned long node_id) {
   return boost::static_pointer_cast<
       crocoddyl::DifferentialActionModelContactFwdDynamics>(
-      iam(time)->get_differential());
+      iam(node_id)->get_differential());
 }
 
 boost::shared_ptr<crocoddyl::CostModelSum>
-OCP::costs(const unsigned long time) {
-  return dam(time)->get_costs();
+OCP::costs(const unsigned long node_id) {
+  return dam(node_id)->get_costs();
 }
 
 boost::shared_ptr<crocoddyl::ActionDataAbstract>
-OCP::ada(const unsigned long time) {
-  return solver_->get_problem()->get_runningDatas()[time];
+OCP::ada(const unsigned long node_id) {
+  return solver_->get_problem()->get_runningDatas()[node_id];
 }
 
 }; // namespace tiago_OCP

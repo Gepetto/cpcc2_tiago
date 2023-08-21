@@ -72,6 +72,8 @@ public:
   OCP();
   OCP(const Model model, const Data data);
 
+  /// @brief initialize the parameters for the OCP, state, actuation and
+  /// contacts (empty)
   void initOCPParms();
 
   void setX0(VectorXd x0) { x0_ = x0; };
@@ -92,45 +94,96 @@ public:
   };
   void setLhId(FrameIndex lh_id) { lh_id_ = lh_id; };
 
+  /// @brief Define the cost function for the hand task
+  /// @param cost cost object to add the hand task
+  /// @param w_hand activation weights for the hand task
+  /// @param lh_cost_weight cost weight for the hand task
   void defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                       Eigen::VectorXd w_hand, double lh_cost_weight);
+
+  /// @brief Define the cost function for the state task
+  /// @param cost cost object to add the state task
+  /// @param w_x activation weights for the state task
+  /// @param xReg_weight cost weight for the state task
   void defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                   Eigen::VectorXd w_x, double xReg_weight);
+
+  /// @brief Define the cost function for the control task
+  /// @param cost cost object to add the control task
+  /// @param uReg_weight cost weight for the control task
   void defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                   double uReg_weight);
 
+  /// @brief Define the cost function for the state bounds
+  /// @param cost cost object to add the state bounds
+  /// @param xBounds_weight cost weight for the state bounds
   void defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
                      double xBounds_weight);
 
+  /// @brief build a running model for the OCP
+  /// @return boost::shared_ptr<ActionModelAbstract> running model
   boost::shared_ptr<ActionModelAbstract> buildRunningModel();
+
+  /// @brief build a terminal model for the OCP
+  /// @return boost::shared_ptr<ActionModelAbstract> terminal model
   boost::shared_ptr<ActionModelAbstract> buildTerminalModel();
 
+  /// @brief recede the cost horioon, like a circular buffer
   void recede();
+
+  /// @brief update the reference for the last running model
   void updateRunModReference();
 
+  /// @brief compute the balancing torques for the current state
+  /// @param x0 current state
   Eigen::VectorXd computeBalancingTorques(Eigen::VectorXd x0);
 
+  /// @brief build the solver for the OCP
+  /// @param x0 initial state
+  /// @param target target for the hand task
   void buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target);
 
+  /// @brief first solve of the OCP, it tries to stay where the robot is
+  /// @param measured_x current state
   void solveFirst(VectorXd measured_x);
+
+  /// @brief solve the OCP
+  /// @param measured_x current state
   void solve(VectorXd measured_x);
 
+  /// @brief change the target for all costs of the runnning model
   void setTarget(Vector3d target);
+
+  /// @brief change the target for the last running model
   void changeTarget(Vector3d target);
 
   void printCosts() {
     std::cout << "First cost: " << *(costs(0)) << std::endl;
   };
 
+  /// @brief get the action model for the OCP of a node
+  /// @param node_id  index of the node
   boost::shared_ptr<crocoddyl::ActionModelAbstract>
-  ama(const unsigned long time);
+  ama(const unsigned long node_id);
+
+  /// @brief get the integrated action model for the OCP of a node
+  /// @param node_id  index of the node
   boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-  iam(const unsigned long time);
+  iam(const unsigned long node_id);
+
+  /// @brief get the differencial action model for the OCP of a node
+  /// @param node_id  index of the node
   boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
-  dam(const unsigned long time);
-  boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long time);
+  dam(const unsigned long node_id);
+
+  /// @brief get the cost model for the OCP of a node
+  /// @param node_id  index of the node
+  boost::shared_ptr<crocoddyl::CostModelSum> costs(const unsigned long node_id);
+
+  /// @brief get the action data for the OCP of a node
+  /// @param node_id  index of the node
   boost::shared_ptr<crocoddyl::ActionDataAbstract>
-  ada(const unsigned long time);
+  ada(const unsigned long node_id);
 
   const Vector3d get_target() { return (target_); };
   double get_time_step() { return (time_step_); };

@@ -108,6 +108,7 @@ protected:
   controller_interface::CallbackReturn read_parameters();
 
 private:
+  /// @brief struct to hold the different Ricatti commands
   struct ricatti_command {
     Eigen::VectorXd u_command;
     Eigen::VectorXd x0_command;
@@ -126,11 +127,13 @@ private:
     };
   };
 
+  /// @brief struct to hold the current state of the robot
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
   };
 
+  /// @brief shared mutex to prevent miswriting on used variable
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                           "crocoddyl_mutex"};
 
@@ -178,7 +181,7 @@ private:
   /// joint
   std::vector<std::string> command_interface_types_;
 
-  /// @brief all types of state interface, in our case effort, velocity,
+  /// @brief all types of state interface, in our case velocity,
   /// position
   std::vector<std::string> state_interface_types_;
 
@@ -199,9 +202,11 @@ private:
   void init_shared_memory();
 
   /// @brief Read the command from the reference interfaces
+  /// @param ric_com Ricatti command to write to
   void read_joints_commands(ricatti_command &ric_com);
 
   /// @brief Read the state from the hardware
+  /// @param curr_state Current State to write to
   void read_state_from_hardware(state &curr_state);
 
   /// @brief Compute the ricatti command u = u* + K*(x - x*)

@@ -36,14 +36,6 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  if (params_.arm_motors_viscous_friction.empty() ||
-      params_.arm_motors_static_friction.empty() ||
-      params_.arm_motors_K_tau.empty()) {
-    RCLCPP_ERROR(get_node()->get_logger(),
-                 "Some motors specs parameters were empty");
-    return controller_interface::CallbackReturn::ERROR;
-  }
-
   n_joints_ = params_.joints.size();
 
   for (int i = 0; i < n_joints_; i++) {

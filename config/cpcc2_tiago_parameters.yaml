@@ -14,21 +14,6 @@ cpcc2_tiago:
     default_value : [position, velocity],
     description: "Name of the state interface",
   }
-  arm_motors_static_friction: {
-    type: double_array,
-    default_value: [0, 0, 0, 0, 0, 0, 0, 0],
-    description: "motors static friction coefficient",
-  }
-  arm_motors_viscous_friction: {
-    type: double_array,
-    default_value: [0, 0, 0, 0, 0, 0, 0, 0],
-    description: "motors viscous friction coefficient",
-  }
-  arm_motors_K_tau: {
-    type: double_array,
-    default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0],
-    description: "motors K tau coefficient",
-  }
 
   OCP_horizon_length: {
     type: int,
@@ -52,24 +37,6 @@ cpcc2_tiago:
     type: double,
     default_value: 20.0,
     description: "OCP solver frequency",
-  }
-
-  enable_logging: {
-    type: bool,
-    default_value: false,
-    description: "Enable logging",
-  }
-
-  log_file_path: {
-    type: string,
-    default_value: "/home/jgleyze/Desktop/logs/OCP_logger.csv",
-    description: "Path to the log file",
-  }
-
-  logging_frequency: {
-    type: double,
-    default_value: 100.0,
-    description: "Logging frequency",
   }
 
 
