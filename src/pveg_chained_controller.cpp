@@ -274,6 +274,11 @@ bool cpcc2_tiago::PvegChainedController::update() {
     interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x0_command,
                                           data_.ddq, interpolate_t_ * 1e-9);
 
+    // interpolated_xs_ =
+    //     lin_interpolate_xs(ricatti_command_.x0_command,
+    //                        ricatti_command_.x1_command, interpolate_t_ *
+    //                        1e-9);
+
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 
     eff_command_ =
@@ -297,7 +302,8 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
 
   for (int i = 0; i < n_joints_; i++) {
     command_u = reference_interfaces_[i]; // arm_i_joint/effort
-    // check if NaN, if nan set to current state to avoid large jump in torque
+    // check if NaN, if nan set to current state or 0 to avoid large jump in
+    // torque
     ric_cmd.u_command[i] = (command_u == command_u) ? command_u : 0;
 
     command_q0 = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos0
@@ -321,7 +327,7 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
 
     command_v1 =
         reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                              n_joints_ + i];
+                              n_joints_ + i]; // arm_i_joint/vel1
     ric_cmd.x1_command[n_joints_ + i] =
         (command_v1 == command_v1) ? command_v1 : command_v0;
   }
@@ -347,12 +353,19 @@ Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
   Eigen::VectorXd v(model_.nv);
   Eigen::VectorXd x(model_.nq + model_.nv);
 
+  // The interpolation is a simple v = v0 + a*t and q = q0 + v0*t + 0.5*a*t^2
   v = x0.tail(model_.nv) + ddq * t;
   q = x0.head(model_.nq) + x0.tail(model_.nv) * t + 0.5 * ddq * t * t;
 
   x << q, v;
 
   return x;
+}
+
+Eigen::VectorXd PvegChainedController::lin_interpolate_xs(Eigen::VectorXd x0,
+                                                          Eigen::VectorXd x1,
+                                                          double t) {
+  return (x1 - x0) / params_.OCP_time_step * t + x0;
 }
 
 Eigen::VectorXd

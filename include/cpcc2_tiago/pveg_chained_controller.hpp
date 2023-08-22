@@ -174,9 +174,6 @@ private:
   /// @brief ricatti_command to store the last command
   ricatti_command last_ricatti_command_;
 
-  /// @brief Vector of Joint Names
-  std::vector<std::string> arm_joint_names_;
-
   /// @brief list of all command interfaces, in this case effort for each
   /// joint
   std::vector<std::string> command_interface_types_;
@@ -221,6 +218,13 @@ private:
   /// @param ddq Acceleration
   /// @param t Time
   Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
+                                     double t);
+
+  /// @brief Interpolate the ricatti command linearly between x0 and x1
+  /// @param x0 Initial State
+  /// @param x1 Final State
+  /// @param t Time
+  Eigen::VectorXd lin_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
                                      double t);
 
   /// @brief Adapt the command to the command interfaces types
