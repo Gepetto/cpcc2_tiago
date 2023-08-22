@@ -42,11 +42,11 @@ void CrocoddylController::update_target_from_subscriber(
                  "Target message has wrong size, should be 3");
     return;
   }
-  Vector3d new_hand_target;
-  new_hand_target << msg->data[0], msg->data[1], msg->data[2];
+  end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
   mutex_.lock();
-  target_shm_->assign(new_hand_target.data(),
-                      new_hand_target.data() + new_hand_target.size());
+  target_shm_->assign(end_effector_target_.data(),
+                      end_effector_target_.data() +
+                          end_effector_target_.size());
   mutex_.unlock();
 }
 
@@ -153,6 +153,26 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
           std::bind(&CrocoddylController::update_target_from_subscriber, this,
                     std::placeholders::_1));
 
+  auto current_time = rclcpp::Clock(RCL_ROS_TIME).now();
+
+  auto timestamp = std::chrono::nanoseconds(current_time.nanoseconds());
+
+  std::time_t timestamp_sec =
+      std::chrono::duration_cast<std::chrono::seconds>(timestamp).count();
+
+  struct std::tm timeinfo;
+  localtime_r(&timestamp_sec, &timeinfo);
+
+  char buffer[80];
+  strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S", &timeinfo);
+  std::string formattedDate(buffer);
+
+  // Initialize the rosbag writer
+  writer_ = std::make_unique<rosbag2_cpp::Writer>();
+  writer_->open("cpcc2_bag_" + formattedDate);
+  writer_->create_topic({"/pos_error", "std_msgs/msg/Float64MultiArray",
+                         rmw_get_serialization_format(), ""});
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -244,11 +264,15 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
                           .translation(); // get the end
                                           // effector pos
 
+  pos_error_ = end_effector_target_ - end_effector_pos_;
+
+  // update the target
   if (is_first_update_) {
     is_first_update_ = false;
     // we fisrt set the target to the current end effector pos to
     // set the balancing torque
     mutex_.lock();
+    end_effector_target_ = end_effector_pos_;
     target_shm_->assign(end_effector_pos_.data(),
                         end_effector_pos_.data() + end_effector_pos_.size());
     *is_first_update_done_shm_ = true;
@@ -265,6 +289,11 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   set_x1_command(xs1_);
 
   current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
+
+  bag_msg_.data.assign(pos_error_.data(),
+                       pos_error_.data() + pos_error_.size());
+
+  writer_->write(bag_msg_, "/pos_error", current_t_);
 
   if ((int)current_t_.nanoseconds() % 100 == 0) {
     std::cout << "Controllers update frequency: "

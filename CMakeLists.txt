@@ -25,6 +25,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   realtime_tools
   std_msgs
+  rosbag2_cpp
 )
 
 find_package(ament_cmake REQUIRED)
@@ -33,13 +34,14 @@ find_package(rclcpp_action REQUIRED)
 find_package(ros2_control REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(generate_parameter_library REQUIRED)
+find_package(rosbag2_cpp REQUIRED)
 find_package(Boost REQUIRED)
 find_package(crocoddyl REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(Eigen3 REQUIRED)
+
 include_directories(${crocoddyl_INCLUDE_DIRS})
 include_directories(${pinocchio_INCLUDE_DIRS})
-
 
 generate_parameter_library(
   cpcc2_tiago_parameters
