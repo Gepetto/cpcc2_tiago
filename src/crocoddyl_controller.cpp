@@ -169,8 +169,28 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   // Initialize the rosbag writer
   writer_ = std::make_unique<rosbag2_cpp::Writer>();
-  writer_->open("cpcc2_bag_" + formattedDate);
-  writer_->create_topic({"/pos_error", "std_msgs/msg/Float64MultiArray",
+
+  rosbag2_storage::StorageOptions storage_options;
+  storage_options.uri = "cpcc2_" + formattedDate + ".mcap";
+  storage_options.storage_id = "mcap";
+
+  rosbag2_cpp::ConverterOptions converter_options;
+  converter_options.input_serialization_format = "cdr";
+  converter_options.output_serialization_format = "cdr";
+
+  writer_->open(storage_options, converter_options);
+
+  writer_->create_topic({"/end_effect_pos_error",
+                         "std_msgs/msg/Float64MultiArray",
+                         rmw_get_serialization_format(), ""});
+
+  writer_->create_topic({"/end_effect_pos", "std_msgs/msg/Float64MultiArray",
+                         rmw_get_serialization_format(), ""});
+
+  writer_->create_topic({"/torque_command", "std_msgs/msg/Float64MultiArray",
+                         rmw_get_serialization_format(), ""});
+
+  writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
                          rmw_get_serialization_format(), ""});
 
   return controller_interface::CallbackReturn::SUCCESS;
@@ -294,6 +314,19 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
                        pos_error_.data() + pos_error_.size());
 
   writer_->write(bag_msg_, "/pos_error", current_t_);
+
+  bag_msg_.data.assign(end_effector_pos_.data(),
+                       end_effector_pos_.data() + end_effector_pos_.size());
+
+  writer_->write(bag_msg_, "/end_effect_pos", current_t_);
+
+  bag_msg_.data.assign(us_.data(), us_.data() + us_.size());
+
+  writer_->write(bag_msg_, "/torque_command", current_t_);
+
+  bag_msg_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
+
+  writer_->write(bag_msg_, "/x_meas", current_t_);
 
   if ((int)current_t_.nanoseconds() % 100 == 0) {
     std::cout << "Controllers update frequency: "
