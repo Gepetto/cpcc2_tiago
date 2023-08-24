@@ -328,6 +328,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   writer_->write(bag_msg_, "/x_meas", current_t_);
 
+  // print solver frequency
   if ((int)current_t_.nanoseconds() % 100 == 0) {
     std::cout << "Controllers update frequency: "
               << 1 / ((current_t_ - last_update_time_)

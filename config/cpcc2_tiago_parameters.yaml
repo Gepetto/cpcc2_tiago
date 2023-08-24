@@ -17,25 +17,25 @@ cpcc2_tiago:
 
   OCP_horizon_length: {
     type: int,
-    default_value: 20,
+    default_value: 100,
     description: "Horizon of the problem",
   }
 
   OCP_time_step: {
     type: double,
-    default_value: 0.05,
+    default_value: 0.01,
     description: "OCP time step",
   }
 
   OCP_solver_iterations: {
     type: int,
-    default_value: 10,
+    default_value: 1,
     description: "OCP iterations",
   }
 
   OCP_solver_frequency: {
     type: double,
-    default_value: 20.0,
+    default_value: 100.0,
     description: "OCP solver frequency",
   }
 

@@ -141,6 +141,9 @@ void OCP::solveFirst(VectorXd measured_x) {
 }
 
 void OCP::recede() {
+  // receide the horizon and put the first element at the end
+  // its cost target will be replace by the target in the
+  // updateRunModReference function
   solver_->get_problem()->circularAppend(
       solver_->get_problem()->get_runningModels()[0],
       solver_->get_problem()->get_runningDatas()[0]);
