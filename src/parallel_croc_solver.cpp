@@ -42,6 +42,8 @@ void init_shared_memory() {
   start_sending_cmd_shm_ =
       crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
 
+  current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.0);
+
   x_meas_shm_->resize(x_meas_.size());
   std::fill(x_meas_shm_->begin(), x_meas_shm_->end(), 0.0);
 
@@ -60,6 +62,12 @@ void init_shared_memory() {
   target_shm_->resize(3);
 }
 
+double read_current_t() {
+  mutex_.lock();
+  double current_t = *current_t_shm_;
+  mutex_.unlock();
+  return current_t;
+}
 Eigen::VectorXd read_controller_x() {
   mutex_.lock();
   Eigen::VectorXd x =
@@ -199,8 +207,10 @@ int main() {
 
   while (true) {
 
-    diff_ = std::chrono::high_resolution_clock::now() - last_solving_time_;
-    if (diff_.count() * 1e-9 < 1 / OCP_solver_frequency_) {
+    current_t_ = read_current_t();
+
+    diff_ = current_t_ - last_solving_time_;
+    if (diff_ * 1e-9 < 1 / OCP_solver_frequency_) {
       continue;
     }
 
@@ -212,7 +222,7 @@ int main() {
       OCP_tiago_.changeTarget(target_);
     }
 
-    start_solving_time_ = std::chrono::high_resolution_clock::now();
+    start_solving_time_ = read_current_t();
 
     OCP_tiago_.solve(x_meas_);
 
@@ -223,20 +233,18 @@ int main() {
 
     send_controller_result(us_, xs0_, xs1_, Ks_);
 
-    current_t_ = std::chrono::high_resolution_clock::now();
+    current_t_ = read_current_t();
+    solving_time_ = current_t_ - start_solving_time_;
+    solver_freq_ = 1 / (diff_ * 1e-9);
 
-    if (current_t_.time_since_epoch().count() % 10 == 0) {
-      std::cout << "Solver frequency: " << std::fixed << std::setprecision(2)
-                << 1 / (diff_.count() * 1e-9) << " Hz, solving time: "
-                << std::chrono::duration_cast<std::chrono::microseconds>(
-                       current_t_ - start_solving_time_)
-                           .count() /
-                       1000.0
+    solving_time_vector_.circularAppend(solving_time_);
+    solver_freq_vector_.circularAppend(solver_freq_);
 
-                << " ms" << std::endl;
-
-      std::cout << "\x1b[A";
-    }
+    std::cout << "Solver frequency: " << std::setprecision(2)
+              << solver_freq_vector_.vector.mean() << " Hz, solving time: "
+              << solving_time_vector_.vector.mean() * 10e-6 << " ms      "
+              << std::endl;
+    std::cout << "\x1b[A";
 
     last_solving_time_ = current_t_;
   }

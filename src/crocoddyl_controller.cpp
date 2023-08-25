@@ -16,6 +16,13 @@ void CrocoddylController::init_shared_memory() {
   target_shm_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
   is_first_update_done_shm_ =
       crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
+  current_t_shm_ = crocoddyl_shm_.find<double>("current_t_shm").first;
+}
+
+void CrocoddylController::send_current_t(double current_t) {
+  mutex_.lock();
+  *current_t_shm_ = current_t;
+  mutex_.unlock();
 }
 
 void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
@@ -171,7 +178,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   writer_ = std::make_unique<rosbag2_cpp::Writer>();
 
   rosbag2_storage::StorageOptions storage_options;
-  storage_options.uri = "cpcc2_" + formattedDate + ".mcap";
+  storage_options.uri = params_.log_folder + formattedDate + ".mcap";
   storage_options.storage_id = "mcap";
 
   rosbag2_cpp::ConverterOptions converter_options;
@@ -269,6 +276,11 @@ CrocoddylController::state_interface_configuration() const {
 controller_interface::return_type
 CrocoddylController::update(const rclcpp::Time & /*time*/,
                             const rclcpp::Duration & /*period*/) {
+
+  current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
+
+  send_current_t(current_t_.nanoseconds());
+
   read_state_from_hardware(current_state_);
 
   x_meas_ << current_state_.position, current_state_.velocity;
@@ -308,8 +320,6 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   set_K_command(Ks_);
   set_x1_command(xs1_);
 
-  current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
-
   bag_msg_.data.assign(pos_error_.data(),
                        pos_error_.data() + pos_error_.size());
 
@@ -328,17 +338,19 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   writer_->write(bag_msg_, "/x_meas", current_t_);
 
-  // print solver frequency
-  if ((int)current_t_.nanoseconds() % 100 == 0) {
-    std::cout << "Controllers update frequency: "
-              << 1 / ((current_t_ - last_update_time_)
+  update_freq_ = 1 / ((current_t_ - last_update_time_)
                           .to_chrono<std::chrono::microseconds>()
                           .count() *
-                      1e-6)
-              << " Hz          " << std::endl;
+                      1e-6);
 
-    std::cout << "\x1b[A";
-  }
+  update_freq_vector_.circularAppend(update_freq_);
+
+  // print solver frequency
+
+  std::cout << "Controllers update frequency: "
+            << update_freq_vector_.vector.mean() << " Hz          "
+            << std::endl;
+  std::cout << "\x1b[A";
 
   last_update_time_ = current_t_;
 
