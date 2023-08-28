@@ -1,11 +1,18 @@
 #ifndef PVEG_CHAINED_CONTROLLER_HPP
 #define PVEG_CHAINED_CONTROLLER_HPP
 
+#include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/thread/thread_time.hpp>
+
 #include "Eigen/Dense"
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
-#include "cpcc2_tiago/logger_OCP.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
@@ -98,55 +105,80 @@ protected:
    * successfully read and their values are allowed,
    * controller_interface::CallbackReturn::ERROR otherwise.
    */
-
   controller_interface::CallbackReturn read_parameters();
 
 private:
-  Model model_;
-  Data data_;
-
+  /// @brief struct to hold the different Ricatti commands
   struct ricatti_command {
     Eigen::VectorXd u_command;
-    Eigen::VectorXd x_command;
+    Eigen::VectorXd x0_command;
+    Eigen::VectorXd xinter_command;
+    Eigen::VectorXd x1_command;
     Eigen::MatrixXd K_command;
 
-    bool operator!=(const ricatti_command &other) const {
-      return u_command != other.u_command || x_command != other.x_command ||
-             K_command != other.K_command;
+    bool operator==(const ricatti_command &rhs) const {
+      return (u_command == rhs.u_command && x0_command == rhs.x0_command &&
+              x1_command == rhs.x1_command && K_command == rhs.K_command);
     }
+
+    bool operator!=(const ricatti_command &rhs) const {
+      return (u_command != rhs.u_command || x0_command != rhs.x0_command ||
+              x1_command != rhs.x1_command || K_command != rhs.K_command);
+    };
   };
 
+  /// @brief struct to hold the current state of the robot
   struct state {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
   };
 
+  /// @brief shared mutex to prevent miswriting on used variable
+  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
+                                          "crocoddyl_mutex"};
+
+  boost::interprocess::managed_shared_memory crocoddyl_shm_;
+
+  bool *start_sending_cmd_shm_;
+  bool start_sending_cmd_ = false;
+
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_command_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   double interpolate_t_ = 0.0;
 
-  Eigen::VectorXd measuredX_;
-  Eigen::VectorXd eff_command_;
-  Eigen::VectorXd command_;
-  Eigen::VectorXd corrected_eff_command_;
+  /// @brief Pinocchio Model
+  Model model_;
 
+  /// @brief Pinocchio Data
+  Data data_;
+
+  /// @brief Eigen::VectorXd to store the current state of the robot
+  Eigen::VectorXd measuredX_;
+
+  /// @brief Eigen::VectorXd to store the computed ricatti command the robot
+  Eigen::VectorXd eff_command_;
+
+  /// @brief Eigen::VectorXd to store the command adapted to the conmmand
+  /// interfaces
+  Eigen::VectorXd command_;
+
+  /// @brief Eigen::VectorXd to store the interpolated xs
   Eigen::VectorXd interpolated_xs_;
 
+  /// @brief ricatti_command to store the last command
   ricatti_command ricatti_command_;
+
+  /// @brief ricatti_command to store the interpolated command
   ricatti_command interpolated_ricatti_command_;
+
+  /// @brief ricatti_command to store the last command
   ricatti_command last_ricatti_command_;
 
-  /// @brief Number of joints
-
-  int n_joints_;
-
-  /// @brief Vector of Joint Names
-  std::vector<std::string> arm_joint_names_;
-
-  /// @brief list of all command interfaces, in this case effort for each joint
+  /// @brief list of all command interfaces, in this case effort for each
+  /// joint
   std::vector<std::string> command_interface_types_;
 
-  /// @brief all types of state interface, in our case effort, velocity,
+  /// @brief all types of state interface, in our case velocity,
   /// position
   std::vector<std::string> state_interface_types_;
 
@@ -156,41 +188,55 @@ private:
   /// @brief Params object to list all parameters
   Params params_;
 
-  /// @brief vector of the static friction coefficients for each motor
-  std::vector<double> arm_motors_static_friction_;
+  /// @brief Number of joints
+  int n_joints_;
 
-  /// @brief vector of the viscuous friction coefficients for each motor
-  std::vector<double> arm_motors_viscous_friction_;
-  /// @brief vector of the motors current to torque coefficient
-  std::vector<double> arm_motors_K_tau_;
-
-  /// @brief placeholder for effort corrected for the motor's friction
-
+  /// @brief state to store the current state of the robot
   state current_state_;
 
-  logger_OCP::logger logger_;
+  /// @brief Initialize the shared memory, find the vector and tie them to
+  /// variables
+  void init_shared_memory();
 
-  void read_joints_commands(
-      ricatti_command &ric_com); // return true if new command is available
+  /// @brief Read the command from the reference interfaces
+  /// @param ric_com Ricatti command to write to
+  void read_joints_commands(ricatti_command &ric_com);
 
+  /// @brief Read the state from the hardware
+  /// @param curr_state Current State to write to
   void read_state_from_hardware(state &curr_state);
 
-  Eigen::VectorXd correct_efforts_for_friction(state curr_state);
-
-  Eigen::VectorXd adapt_command_to_type(Eigen::VectorXd eff_command,
-                                        ricatti_command ric_cmd);
-
+  /// @brief Compute the ricatti command u = u* + K*(x - x*)
+  /// @param ric_cmd Ricatti command
+  /// @param x Current State
   Eigen::VectorXd compute_ricatti_command(ricatti_command ric_cmd,
                                           Eigen::VectorXd x);
 
+  /// @brief Interpolate the ricatti command q = q0 + v0*t + 1/2*a*t^2
+  /// v = v0 + a*t
+  /// @param x0 Initial State
+  /// @param ddq Acceleration
+  /// @param t Time
   Eigen::VectorXd tau_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd ddq,
                                      double t);
 
-  void set_command(Eigen::VectorXd command); // command is a mix between
-                                             // effort pos and vel
-};
+  /// @brief Interpolate the ricatti command linearly between x0 and x1
+  /// @param x0 Initial State
+  /// @param x1 Final State
+  /// @param t Time
+  Eigen::VectorXd lin_interpolate_xs(Eigen::VectorXd x0, Eigen::VectorXd x1,
+                                     double t);
 
-template <typename T> int sign(T val) { return (T(0) < val) - (val < T(0)); }
+  /// @brief Adapt the command to the command interfaces types
+  /// @param eff_command Command to adapt
+  /// @param ric_cmd Ricatti command to get the other command types
+  Eigen::VectorXd adapt_command_to_type(Eigen::VectorXd eff_command,
+                                        ricatti_command ric_cmd);
+
+  /// @brief Set the adapted command to the command interfaces
+  /// @param command Command to set, contain effort, pos or vel
+  void set_command(Eigen::VectorXd command);
+};
 
 } // namespace cpcc2_tiago
 
