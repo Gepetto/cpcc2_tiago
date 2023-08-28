@@ -102,6 +102,7 @@ cpcc2_tiago::PvegChainedController::on_init() {
     return ret;
   }
 
+  // try to lock and unlock the mutex to check if it's available
   while (true) {
     if (mutex_.try_lock()) {
       break;
@@ -113,9 +114,11 @@ cpcc2_tiago::PvegChainedController::on_init() {
     }
   }
 
+  mutex_.unlock();
+
   init_shared_memory();
 
-  model_ = model_builder::build_model(params_.joints);
+  model_ = model_builder::build_model(params_.urdf_path, params_.joints);
 
   data_ = Data(model_);
 
@@ -246,7 +249,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   measuredX_ << current_state_.position, current_state_.velocity;
 
-  model_builder::updateReducedModel(measuredX_, model_, data_);
+  model_builder::update_reduced_model(measuredX_, model_, data_);
 
   last_ricatti_command_ = ricatti_command_;
 
@@ -343,6 +346,7 @@ void PvegChainedController::read_state_from_hardware(state &curr_state) {
 Eigen::VectorXd
 PvegChainedController::compute_ricatti_command(ricatti_command ric_cmd,
                                                Eigen::VectorXd x) {
+  // compute the ricatti command cmd = u + K*(x_cmd - x_meas)
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.xinter_command - x);
 }
 
@@ -365,6 +369,7 @@ Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
 Eigen::VectorXd PvegChainedController::lin_interpolate_xs(Eigen::VectorXd x0,
                                                           Eigen::VectorXd x1,
                                                           double t) {
+  // interpolate linearly between x0 and x1
   return (x1 - x0) / params_.OCP_time_step * t + x0;
 }
 
@@ -372,6 +377,11 @@ Eigen::VectorXd
 PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
                                              ricatti_command ric_cmd) {
   Eigen::VectorXd command(n_joints_);
+
+  // if the the actuators can't be controlled in effort, we need to convert the
+  // command to the right type, be it position or velocity
+  // for the later we used x1 as a target for the PID controller
+
   for (int i = 0; i < n_joints_; i++) {
     if (params_.pveg_joints_command_type[i] == "effort") {
       command[i] = eff_command[i];
@@ -385,6 +395,7 @@ PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
 }
 
 void PvegChainedController::set_command(Eigen::VectorXd command) {
+  // send the adapted command to the hardware
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command[i]);
   }
