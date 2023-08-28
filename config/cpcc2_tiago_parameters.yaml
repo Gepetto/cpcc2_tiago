@@ -1,4 +1,10 @@
 cpcc2_tiago:
+
+  urdf_path: {
+    type: string,
+    default_value: /home/jgleyze/stage_laas_gepetto/cpcc2_tiago_ws/src/cpcc2_tiago/urdf/tiago.urdf,
+    description: "Path to the URDF file",
+  }
   joints: {
     type: string_array,
     default_value: [torso_lift_joint, arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint], #it's very important for them to be ordered !

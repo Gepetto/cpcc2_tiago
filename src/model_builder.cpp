@@ -2,14 +2,11 @@
 
 namespace model_builder {
 
-Model build_model(std::vector<std::string> joints) {
-  const std::string urdf_filename = std::string(
-      "/opt/openrobots/include/example-robot-data/robots/tiago_description/"
-      "robots/tiago.urdf");
+Model build_model(std::string urdf_path, std::vector<std::string> joints) {
 
   // Load the urdf model
   Model full_model;
-  pinocchio::urdf::buildModel(urdf_filename, full_model);
+  pinocchio::urdf::buildModel(urdf_path, full_model);
 
   std::vector<std::string> actuatedJointNames = {"universe"};
 
@@ -54,8 +51,8 @@ Model build_model(std::vector<std::string> joints) {
   return buildReducedModel(full_model, jointsToLockIDs, q0);
 }
 
-void updateReducedModel(const Eigen::Ref<const Eigen::VectorXd> &x,
-                        Model &model, Data &data) {
+void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
+                          Model &model, Data &data) {
   /** x is the reduced posture, or contains the reduced posture in the first
    * elements */
   pinocchio::forwardKinematics(model, data, x.head(model.nq));

@@ -19,29 +19,6 @@ void CrocoddylController::init_shared_memory() {
   current_t_shm_ = crocoddyl_shm_.find<double>("current_t_shm").first;
 }
 
-void CrocoddylController::send_current_t(double current_t) {
-  mutex_.lock();
-  *current_t_shm_ = current_t;
-  mutex_.unlock();
-}
-
-void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
-  mutex_.lock();
-  x_meas_shm_->assign(x.data(), x.data() + x.size());
-  mutex_.unlock();
-}
-
-void CrocoddylController::read_solver_results() {
-  mutex_.lock();
-  us_ = Eigen::Map<Eigen::VectorXd>(us_shm_->data(), us_shm_->size());
-  xs0_ = Eigen::Map<Eigen::VectorXd>(xs0_shm_->data(), xs0_shm_->size());
-  xs1_ = Eigen::Map<Eigen::VectorXd>(xs1_shm_->data(), xs1_shm_->size());
-  Ks_ = Eigen::Map<
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-      Ks_shm_->data(), Ks_.rows(), Ks_.cols());
-  mutex_.unlock();
-}
-
 void CrocoddylController::update_target_from_subscriber(
     const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
   if (msg->data.size() != 3) {
@@ -111,6 +88,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 controller_interface::CallbackReturn CrocoddylController::on_init() {
   RCLCPP_INFO(get_node()->get_logger(), "Initializing CrocoddylController.");
 
+  // Read the parameters
   try {
     declare_parameters();
   } catch (const std::exception &e) {
@@ -147,7 +125,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   init_shared_memory();
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(joints_names_);
+  model_ = model_builder::build_model(params_.urdf_path, joints_names_);
 
   data_ = Data(model_);
 
@@ -177,6 +155,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   // Initialize the rosbag writer
   writer_ = std::make_unique<rosbag2_cpp::Writer>();
 
+  // Set the rosbag parameters
   rosbag2_storage::StorageOptions storage_options;
   storage_options.uri = params_.log_folder + formattedDate + ".mcap";
   storage_options.storage_id = "mcap";
@@ -279,7 +258,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
-  send_current_t(current_t_.nanoseconds());
+  send_solver_current_t(current_t_.nanoseconds());
 
   read_state_from_hardware(current_state_);
 
@@ -289,7 +268,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   send_solver_x(x_meas_);
 
   // update the model with the new state
-  model_builder::updateReducedModel(x_meas_, model_, data_);
+  model_builder::update_reduced_model(x_meas_, model_, data_);
 
   // get the end effector position
   end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
@@ -301,7 +280,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   // update the target
   if (is_first_update_) {
     is_first_update_ = false;
-    // we fisrt set the target to the current end effector pos to
+    // we first set the target to the current end effector pos to
     // set the balancing torque
     mutex_.lock();
     end_effector_target_ = end_effector_pos_;
@@ -343,7 +322,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
                           .count() *
                       1e-6);
 
-  update_freq_vector_.circularAppend(update_freq_);
+  update_freq_vector_.circular_append(update_freq_);
 
   // print solver frequency
 
@@ -357,7 +336,34 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   return controller_interface::return_type::OK;
 }
 
+void CrocoddylController::send_solver_current_t(double current_t) {
+  // send the current t to sync the time between the controller and the solver
+  mutex_.lock();
+  *current_t_shm_ = current_t;
+  mutex_.unlock();
+}
+
+void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
+  // send the current state to the solver
+  mutex_.lock();
+  x_meas_shm_->assign(x.data(), x.data() + x.size());
+  mutex_.unlock();
+}
+
+void CrocoddylController::read_solver_results() {
+  // read the solver results from the shared memory
+  mutex_.lock();
+  us_ = Eigen::Map<Eigen::VectorXd>(us_shm_->data(), us_shm_->size());
+  xs0_ = Eigen::Map<Eigen::VectorXd>(xs0_shm_->data(), xs0_shm_->size());
+  xs1_ = Eigen::Map<Eigen::VectorXd>(xs1_shm_->data(), xs1_shm_->size());
+  Ks_ = Eigen::Map<
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+      Ks_shm_->data(), Ks_.rows(), Ks_.cols());
+  mutex_.unlock();
+}
+
 void CrocoddylController::read_state_from_hardware(state &current_state) {
+  // read the state from the hardware
   for (int i = 0; i < n_joints_; ++i) {
     current_state.position[i] = state_interfaces_[i].get_value();
     current_state.velocity[i] = state_interfaces_[n_joints_ + i].get_value();
@@ -365,12 +371,14 @@ void CrocoddylController::read_state_from_hardware(state &current_state) {
 }
 
 void CrocoddylController::set_u_command(VectorXd command_u) {
+  // send the effort command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command_u[i]);
   }
 }
 
 void CrocoddylController::set_x0_command(VectorXd command_x) {
+  // send the position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[n_joints_ + i].set_value(command_x[i]);
     command_interfaces_[2 * n_joints_ + i].set_value(command_x[n_joints_ + i]);
@@ -378,6 +386,7 @@ void CrocoddylController::set_x0_command(VectorXd command_x) {
 }
 
 void CrocoddylController::set_K_command(MatrixXd command_K) {
+  // send the gain command to pveg controller
   for (int i = 0; i < n_joints_; ++i) {
     for (int j = 0; j < 2 * n_joints_; j++) {
       command_interfaces_[3 * n_joints_ + i * 2 * n_joints_ + j].set_value(
@@ -387,6 +396,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
 }
 
 void CrocoddylController::set_x1_command(VectorXd command_x) {
+  // send the next position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ + i]
         .set_value(command_x[i]);

@@ -132,7 +132,7 @@ int main() {
   x_meas_ = read_controller_x();
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(joints_names_);
+  model_ = model_builder::build_model(params_.urdf_path, joints_names_);
 
   data_ = Data(model_);
 
@@ -237,8 +237,8 @@ int main() {
     solving_time_ = current_t_ - start_solving_time_;
     solver_freq_ = 1 / (diff_ * 1e-9);
 
-    solving_time_vector_.circularAppend(solving_time_);
-    solver_freq_vector_.circularAppend(solver_freq_);
+    solving_time_vector_.circular_append(solving_time_);
+    solver_freq_vector_.circular_append(solver_freq_);
 
     std::cout << "Solver frequency: " << std::setprecision(2)
               << solver_freq_vector_.vector.mean() << " Hz, solving time: "

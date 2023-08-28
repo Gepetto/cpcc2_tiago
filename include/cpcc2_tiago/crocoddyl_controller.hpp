@@ -16,7 +16,6 @@
 #include "controller_interface/controller_interface.hpp"
 #include "controller_interface/helpers.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
-#include "cpcc2_tiago/shared_mutex.hpp"
 #include "cpcc2_tiago/tiago_OCP.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
@@ -86,20 +85,19 @@ private:
     Eigen::VectorXd velocity;
   };
 
+  // circular vector to store values over time and calculate the rolling mean
   struct CircularVector {
     Eigen::VectorXd vector;
 
-    CircularVector(int size) : vector(size) {
-      vector.setZero(); // Initialiser le vecteur avec des zéros
-    }
+    CircularVector(int size) : vector(size) { vector.setZero(); }
 
-    void circularAppend(double newValue) {
-      Eigen::VectorXd shiftedVector(vector.size());
+    void circular_append(double new_value) {
+      Eigen::VectorXd shifted_vector(vector.size());
       for (int i = 0; i < vector.size() - 1; ++i) {
-        shiftedVector(i) = vector(i + 1);
+        shifted_vector(i) = vector(i + 1);
       }
-      shiftedVector(vector.size() - 1) = newValue;
-      vector = shiftedVector;
+      shifted_vector(vector.size() - 1) = new_value;
+      vector = shifted_vector;
     }
   };
 
@@ -181,7 +179,9 @@ private:
   /// variables
   void init_shared_memory();
 
-  void send_current_t(double current_t);
+  /// @brief Send the solver the current time
+  /// @param current_t the current time
+  void send_solver_current_t(double current_t);
 
   /// @brief Send the solver the current state
   /// @param x the current state
