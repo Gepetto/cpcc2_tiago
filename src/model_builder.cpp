@@ -53,8 +53,8 @@ Model build_model(std::string urdf_path, std::vector<std::string> joints) {
 
 void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
                           Model &model, Data &data) {
-  /** x is the reduced posture, or contains the reduced posture in the first
-   * elements */
+  // x is the reduced posture, or contains the reduced posture in the first
+  // elements
   pinocchio::forwardKinematics(model, data, x.head(model.nq));
   pinocchio::updateFramePlacements(model, data);
 }

@@ -179,6 +179,23 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
                          rmw_get_serialization_format(), ""});
 
+  // Initialize the publishers for real time logging
+
+  end_effect_pos_error_pub_ =
+      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+          "~/end_effect_pos_error", 10);
+
+  end_effect_pos_pub_ =
+      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+          "~/end_effect_pos", 10);
+
+  torque_command_pub_ =
+      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+          "~/torque_command", 10);
+
+  x_meas_pub_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+      "~/x_meas", 10);
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -299,23 +316,30 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   set_K_command(Ks_);
   set_x1_command(xs1_);
 
-  bag_msg_.data.assign(pos_error_.data(),
+  // log the data to the ros2 bag and live topics
+  log_msg_.data.assign(pos_error_.data(),
                        pos_error_.data() + pos_error_.size());
 
-  writer_->write(bag_msg_, "/pos_error", current_t_);
+  writer_->write(log_msg_, "/end_effect_pos_error", current_t_);
+  end_effect_pos_error_pub_->publish(log_msg_);
 
-  bag_msg_.data.assign(end_effector_pos_.data(),
+  log_msg_.data.assign(end_effector_pos_.data(),
                        end_effector_pos_.data() + end_effector_pos_.size());
 
-  writer_->write(bag_msg_, "/end_effect_pos", current_t_);
+  writer_->write(log_msg_, "/end_effect_pos", current_t_);
+  end_effect_pos_pub_->publish(log_msg_);
 
-  bag_msg_.data.assign(us_.data(), us_.data() + us_.size());
+  log_msg_.data.assign(us_.data(), us_.data() + us_.size());
 
-  writer_->write(bag_msg_, "/torque_command", current_t_);
+  writer_->write(log_msg_, "/torque_command", current_t_);
+  torque_command_pub_->publish(log_msg_);
 
-  bag_msg_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
+  log_msg_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
 
-  writer_->write(bag_msg_, "/x_meas", current_t_);
+  writer_->write(log_msg_, "/x_meas", current_t_);
+  x_meas_pub_->publish(log_msg_);
+
+  // compute the update frequency
 
   update_freq_ = 1 / ((current_t_ - last_update_time_)
                           .to_chrono<std::chrono::microseconds>()
@@ -324,7 +348,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   update_freq_vector_.circular_append(update_freq_);
 
-  // print solver frequency
+  // print update frequency
 
   std::cout << "Controllers update frequency: "
             << update_freq_vector_.vector.mean() << " Hz          "

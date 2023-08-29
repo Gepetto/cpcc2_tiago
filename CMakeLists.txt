@@ -29,7 +29,9 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclpy REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(ros2_control REQUIRED)
 find_package(controller_manager REQUIRED)
@@ -53,6 +55,13 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+## python nodes
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+  scripts/performance_evaluator.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ## crocoddyl_controller
 add_library(

@@ -24,9 +24,10 @@ void init_shared_memory() {
   // Initialize shared memory STL-compatible allocator
   const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
 
+  // constuct all the shared memory segments
   x_meas_shm_ =
       crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
-      (alloc_inst); // first ctor parameter
+      (alloc_inst);                                         //
   us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
   xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
   xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
@@ -44,6 +45,8 @@ void init_shared_memory() {
 
   current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.0);
 
+  // resize all the shared memory segments and fill them with zeros
+  // to avoid reading uninitialized memory
   x_meas_shm_->resize(x_meas_.size());
   std::fill(x_meas_shm_->begin(), x_meas_shm_->end(), 0.0);
 
@@ -143,9 +146,11 @@ int main() {
 
   OCP_tiago_.setX0(x_meas_);
 
+  // set the hand frame id
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
+  // set the OCP parameters
   OCP_horizon_length_ = params_.OCP_horizon_length;
   OCP_time_step_ = params_.OCP_time_step;
   OCP_solver_iterations_ = params_.OCP_solver_iterations;
@@ -156,9 +161,10 @@ int main() {
 
   std::cout << "OCP settings set." << std::endl;
 
-  std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
+  // set the OCP costs weights and activation weights
+  std::map<std::string, double> costs_weights{{"lh_goal_weight", 2e2},
                                               {"xReg_weight", 1e-3},
-                                              {"uReg_weight", 1e-4},
+                                              {"uReg_weight", 2e-4},
                                               {"xBounds_weight", 1}};
 
   VectorXd w_hand(6);
@@ -174,6 +180,7 @@ int main() {
   OCP_tiago_.setCostsWeights(costs_weights);
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
 
+  // read the first target, it should be the current position
   target_ = read_controller_target();
 
   std::cout << "First target: " << target_.transpose() << std::endl;
@@ -201,12 +208,18 @@ int main() {
 
   std::cout << "First solve done" << std::endl;
 
+  // after the first solve, start sending the commands to the robot
   mutex_.lock();
   *start_sending_cmd_shm_ = true;
   mutex_.unlock();
 
+  // start the solver loop
   while (true) {
 
+    /* to synchronize the time with the controller we use the ROS time
+     * for the solver, for an accurate time reading, the controllers have to
+     * run at a higher frequency than the solver
+     */
     current_t_ = read_current_t();
 
     diff_ = current_t_ - last_solving_time_;

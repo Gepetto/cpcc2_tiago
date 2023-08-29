@@ -25,6 +25,7 @@ boost::shared_ptr<ActionModelAbstract> OCP::buildRunningModel() {
   boost::shared_ptr<CostModelSum> costs =
       boost::make_shared<CostModelSum>(state_, actuation_->get_nu());
 
+  // define the task for the running nodes
   defineHandTask(costs, w_hand_, costs_weights_["lh_goal_weight"]);
   defineXReg(costs, w_x_, costs_weights_["xReg_weight"]);
   defineUReg(costs, costs_weights_["uReg_weight"]);
@@ -45,6 +46,7 @@ boost::shared_ptr<ActionModelAbstract> OCP::buildTerminalModel() {
   boost::shared_ptr<CostModelSum> costs =
       boost::make_shared<CostModelSum>(state_, actuation_->get_nu());
 
+  // define the task for the last node
   defineHandTask(costs, w_hand_, costs_weights_["lh_goal_weight"]);
   defineXReg(costs, w_x_, costs_weights_["xReg_weight"]);
   defineUReg(costs, costs_weights_["uReg_weight"]);
@@ -107,7 +109,7 @@ void OCP::buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target) {
 void OCP::setTarget(Vector3d target) {
   target_ = target;
   lh_Mref_ = SE3(Matrix3d::Identity(), target_);
-
+  // change the target for all node
   for (size_t node_id = 0; node_id < horizon_length_ + 1; node_id++) {
     boost::static_pointer_cast<ResidualModelFramePlacement>(
         costs(node_id)->get_costs().at("lh_goal")->cost->get_residual())
@@ -126,7 +128,6 @@ void OCP::changeTarget(Vector3d target) {
 }
 
 void OCP::solveFirst(VectorXd measured_x) {
-  // horizon settings
   std::vector<VectorXd> xs_init;
   std::vector<VectorXd> us_init;
 
@@ -162,6 +163,7 @@ void OCP::updateRunModReference() {
 }
 
 void OCP::solve(VectorXd measured_x) {
+  // recede the horizon and update the reference of the last node
   recede();
   updateRunModReference();
 
@@ -174,6 +176,7 @@ void OCP::solve(VectorXd measured_x) {
 
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();
+  //@TODO : why when putting the warm start it does not work ?
   solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
 }
 

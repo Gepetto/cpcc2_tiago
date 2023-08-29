@@ -124,11 +124,19 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       target_subscriber_;
 
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+      end_effect_pos_error_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+      end_effect_pos_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+      torque_command_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr x_meas_pub_;
+
   /// @brief rosbag writer to log data
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
 
   /// @brief rosbag message to log data
-  std_msgs::msg::Float64MultiArray bag_msg_;
+  std_msgs::msg::Float64MultiArray log_msg_;
 
   Model model_;
   Data data_;
