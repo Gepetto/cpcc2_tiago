@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import numpy as np
+import sys
 
 
 class PerformanceEvaluator(Node):
@@ -73,13 +74,13 @@ class PerformanceEvaluator(Node):
                     else:
                         self.save_error_history()
                         self.destroy_node()
-                        rclpy.shutdown()
+                        sys.exit()
 
                 elif elapsed_time > 10:
                     print("Timeout reached. Ending performance evaluation...")
                     self.save_error_history()
                     self.destroy_node()
-                    rclpy.shutdown()
+                    sys.exit()
 
     def save_error_history(self):
         with open("error_history.txt", "w") as f:
@@ -90,7 +91,7 @@ class PerformanceEvaluator(Node):
 def main(args=None):
     rclpy.init(args=args)
     print("Starting performance evaluation...")
-    target_sequence = [[0.8, 0, 0.8], [0.8, 0, 1.2]]
+    target_sequence = [[0.8, 0, 0.8], [0.6, 0, 1.2]]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
     performance_evaluator.send_target(target_sequence[0])  # Start the evaluation

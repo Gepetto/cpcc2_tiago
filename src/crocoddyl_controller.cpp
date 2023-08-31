@@ -351,7 +351,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   // print update frequency
 
   std::cout << "Controllers update frequency: "
-            << update_freq_vector_.vector.mean() << " Hz          "
+            << update_freq_vector_.vector.mean() << " Hz           "
             << std::endl;
   std::cout << "\x1b[A";
 

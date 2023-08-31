@@ -162,14 +162,14 @@ int main() {
   std::cout << "OCP settings set." << std::endl;
 
   // set the OCP costs weights and activation weights
-  std::map<std::string, double> costs_weights{{"lh_goal_weight", 2e2},
-                                              {"xReg_weight", 1e-3},
-                                              {"uReg_weight", 2e-4},
+  std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
+                                              {"xReg_weight", 5e-4},
+                                              {"uReg_weight", 1e-4},
                                               {"xBounds_weight", 1}};
 
   VectorXd w_hand(6);
 
-  w_hand << VectorXd::Constant(3, 1), VectorXd::Constant(3, 0.0001);
+  w_hand << VectorXd::Constant(3, 10), VectorXd::Constant(3, 0.0001);
 
   VectorXd w_x(2 * model_.nv);
 
@@ -233,6 +233,10 @@ int main() {
     if (target_ != OCP_tiago_.get_target()) {
 
       OCP_tiago_.changeTarget(target_);
+      std::cout << "\x1b[A";
+      std::cout << "New target: " << target_.transpose() << "            "
+                << std::endl;
+      std::cout << std::endl;
     }
 
     start_solving_time_ = read_current_t();
