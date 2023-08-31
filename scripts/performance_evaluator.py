@@ -4,7 +4,7 @@
 This script is used to evaluate the performance of the cpcc2 controller.
 It sends a sequence of targets to the controller and records the error and the 
 time it takes to reach each target. To evalate if the task is done we compute the stantard deviation
-based on the last 500 error samples. If the standard deviation is below a certain threshold and the
+based on the last 1000 error samples. If the standard deviation is below a certain threshold and the
 current error is below 0.1, we consider the task done and move to the next target.
 """
 
@@ -87,6 +87,7 @@ class PerformanceEvaluator(Node):
                             [str(t) for t, _, _ in self.error_history],
                             [e for _, e, _ in self.error_history],
                         )
+                        plt.show()
                         sys.exit()
 
                 elif elapsed_time > 20:
@@ -105,14 +106,14 @@ def main(args=None):
     rclpy.init(args=args)
     print("Starting performance evaluation...")
     target_sequence = [
-        [0.45, -0.3, 0.4],
+        [0.5, -0.3, 0.4],
         [0.7, -0.3, 0.4],
         [0.7, -0.3, 0.8],
-        [0.45, -0.3, 0.8],
-        [0.45, 0.3, 0.8],
+        [0.5, -0.3, 0.8],
+        [0.5, 0.3, 0.8],
         [0.7, 0.3, 0.8],
         [0.7, 0.3, 0.4],
-        [0.45, 0.3, 0.4],
+        [0.5, 0.3, 0.4],
     ]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
