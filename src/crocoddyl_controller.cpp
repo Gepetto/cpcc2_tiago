@@ -138,63 +138,68 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
           std::bind(&CrocoddylController::update_target_from_subscriber, this,
                     std::placeholders::_1));
 
-  auto current_time = rclcpp::Clock(RCL_ROS_TIME).now();
+  if (params_.enable_file_logging) {
+    auto current_time = rclcpp::Clock(RCL_ROS_TIME).now();
 
-  auto timestamp = std::chrono::nanoseconds(current_time.nanoseconds());
+    auto timestamp = std::chrono::nanoseconds(current_time.nanoseconds());
 
-  std::time_t timestamp_sec =
-      std::chrono::duration_cast<std::chrono::seconds>(timestamp).count();
+    std::time_t timestamp_sec =
+        std::chrono::duration_cast<std::chrono::seconds>(timestamp).count();
 
-  struct std::tm timeinfo;
-  localtime_r(&timestamp_sec, &timeinfo);
+    struct std::tm timeinfo;
+    localtime_r(&timestamp_sec, &timeinfo);
 
-  char buffer[80];
-  strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S", &timeinfo);
-  std::string formattedDate(buffer);
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S", &timeinfo);
+    std::string formattedDate(buffer);
 
-  // Initialize the rosbag writer
-  writer_ = std::make_unique<rosbag2_cpp::Writer>();
+    // Initialize the rosbag writer
+    writer_ = std::make_unique<rosbag2_cpp::Writer>();
 
-  // Set the rosbag parameters
-  rosbag2_storage::StorageOptions storage_options;
-  storage_options.uri = params_.log_folder + formattedDate + ".mcap";
-  storage_options.storage_id = "mcap";
+    // Set the rosbag parameters
+    rosbag2_storage::StorageOptions storage_options;
+    storage_options.uri = params_.log_folder + formattedDate + ".mcap";
+    storage_options.storage_id = "mcap";
 
-  rosbag2_cpp::ConverterOptions converter_options;
-  converter_options.input_serialization_format = "cdr";
-  converter_options.output_serialization_format = "cdr";
+    rosbag2_cpp::ConverterOptions converter_options;
+    converter_options.input_serialization_format = "cdr";
+    converter_options.output_serialization_format = "cdr";
 
-  writer_->open(storage_options, converter_options);
+    writer_->open(storage_options, converter_options);
 
-  writer_->create_topic({"/end_effect_pos_error",
-                         "std_msgs/msg/Float64MultiArray",
-                         rmw_get_serialization_format(), ""});
+    writer_->create_topic({"/end_effect_pos_error",
+                           "std_msgs/msg/Float64MultiArray",
+                           rmw_get_serialization_format(), ""});
 
-  writer_->create_topic({"/end_effect_pos", "std_msgs/msg/Float64MultiArray",
-                         rmw_get_serialization_format(), ""});
+    writer_->create_topic({"/end_effect_pos", "std_msgs/msg/Float64MultiArray",
+                           rmw_get_serialization_format(), ""});
 
-  writer_->create_topic({"/torque_command", "std_msgs/msg/Float64MultiArray",
-                         rmw_get_serialization_format(), ""});
+    writer_->create_topic({"/torque_command", "std_msgs/msg/Float64MultiArray",
+                           rmw_get_serialization_format(), ""});
 
-  writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
-                         rmw_get_serialization_format(), ""});
+    writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
+                           rmw_get_serialization_format(), ""});
+  }
 
-  // Initialize the publishers for real time logging
+  if (params_.enable_live_logging) {
+    // Initialize the publishers for real time
+    // logging
+    end_effect_pos_error_pub_ =
+        get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+            "~/end_effect_pos_error", 10);
 
-  end_effect_pos_error_pub_ =
-      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
-          "~/end_effect_pos_error", 10);
+    end_effect_pos_pub_ =
+        get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+            "~/end_effect_pos", 10);
 
-  end_effect_pos_pub_ =
-      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
-          "~/end_effect_pos", 10);
+    torque_command_pub_ =
+        get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+            "~/torque_command", 10);
 
-  torque_command_pub_ =
-      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
-          "~/torque_command", 10);
-
-  x_meas_pub_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
-      "~/x_meas", 10);
+    x_meas_pub_ =
+        get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+            "~/x_meas", 10);
+  }
 
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -288,9 +293,8 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   model_builder::update_reduced_model(x_meas_, model_, data_);
 
   // get the end effector position
-  end_effector_pos_ = model_builder::get_end_effector_SE3(data_, lh_id_)
-                          .translation(); // get the end
-                                          // effector pos
+  end_effector_pos_ =
+      model_builder::get_end_effector_SE3(data_, lh_id_).translation();
 
   pos_error_ = end_effector_target_ - end_effector_pos_;
 
@@ -317,27 +321,29 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   set_x1_command(xs1_);
 
   // log the data to the ros2 bag and live topics
-  log_msg_.data.assign(pos_error_.data(),
-                       pos_error_.data() + pos_error_.size());
+  log_msg_err_.data.assign(pos_error_.data(),
+                           pos_error_.data() + pos_error_.size());
 
-  writer_->write(log_msg_, "/end_effect_pos_error", current_t_);
-  end_effect_pos_error_pub_->publish(log_msg_);
+  log_msg_pos_.data.assign(end_effector_pos_.data(),
+                           end_effector_pos_.data() + end_effector_pos_.size());
 
-  log_msg_.data.assign(end_effector_pos_.data(),
-                       end_effector_pos_.data() + end_effector_pos_.size());
+  log_msg_eff_.data.assign(us_.data(), us_.data() + us_.size());
 
-  writer_->write(log_msg_, "/end_effect_pos", current_t_);
-  end_effect_pos_pub_->publish(log_msg_);
+  log_msg_x_meas_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
 
-  log_msg_.data.assign(us_.data(), us_.data() + us_.size());
+  if (params_.enable_file_logging) {
+    writer_->write(log_msg_err_, "/end_effect_pos_error", current_t_);
+    writer_->write(log_msg_pos_, "/end_effect_pos", current_t_);
+    writer_->write(log_msg_eff_, "/torque_command", current_t_);
+    writer_->write(log_msg_x_meas_, "/x_meas", current_t_);
+  }
 
-  writer_->write(log_msg_, "/torque_command", current_t_);
-  torque_command_pub_->publish(log_msg_);
-
-  log_msg_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
-
-  writer_->write(log_msg_, "/x_meas", current_t_);
-  x_meas_pub_->publish(log_msg_);
+  if (params_.enable_live_logging) {
+    end_effect_pos_error_pub_->publish(log_msg_err_);
+    end_effect_pos_pub_->publish(log_msg_pos_);
+    torque_command_pub_->publish(log_msg_eff_);
+    x_meas_pub_->publish(log_msg_x_meas_);
+  }
 
   // compute the update frequency
 

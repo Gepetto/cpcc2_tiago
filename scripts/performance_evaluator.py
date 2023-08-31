@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
+
+"""
+This script is used to evaluate the performance of the cpcc2 controller.
+It sends a sequence of targets to the controller and records the error and the 
+time it takes to reach each target. To evalate if the task is done we compute the stantard deviation
+based on the last 500 error samples. If the standard deviation is below a certain threshold and the
+current error is below 0.1, we consider the task done and move to the next target.
+"""
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 import sys
+import matplotlib.pyplot as plt
 
 
 class PerformanceEvaluator(Node):
@@ -24,8 +34,8 @@ class PerformanceEvaluator(Node):
         self.current_target = None
         self.previous_errors = np.array([1e3, 1e3, 1e3])
         self.started_evaluation = False
-        self.max_distance_variation = 0.001
-        self.num_error_samples = 500  # Number of error samples to consider for std
+        self.max_distance_variation = 0.0001
+        self.num_error_samples = 1000  # Number of error samples to consider for std
         self.error_history = []
         self.start_time = None
 
@@ -37,7 +47,7 @@ class PerformanceEvaluator(Node):
         self.started_evaluation = True
         self.start_time = self.get_clock().now()
 
-    def calculate_euclidean_distance(self, error):
+    def euclidean_distance(self, error):
         if error.ndim == 1:
             return np.linalg.norm(error)
         else:
@@ -53,13 +63,13 @@ class PerformanceEvaluator(Node):
 
             else:
                 self.previous_errors = np.vstack((self.previous_errors, current_error))
-                current_distance = self.calculate_euclidean_distance(current_error)
-                previous_distance = self.calculate_euclidean_distance(
+                current_distance = self.euclidean_distance(current_error)
+                previous_distance = self.euclidean_distance(
                     self.previous_errors[-self.num_error_samples : :]
                 )
                 if (
                     np.std(previous_distance) < self.max_distance_variation
-                    and current_distance < 0.01
+                    and current_distance < 0.1
                 ):
                     self.error_history.append(
                         (self.current_target, current_distance, elapsed_time)
@@ -73,10 +83,13 @@ class PerformanceEvaluator(Node):
                         self.send_target(self.target_sequence[self.target_index])
                     else:
                         self.save_error_history()
-                        self.destroy_node()
+                        plt.scatter(
+                            [str(t) for t, _, _ in self.error_history],
+                            [e for _, e, _ in self.error_history],
+                        )
                         sys.exit()
 
-                elif elapsed_time > 10:
+                elif elapsed_time > 20:
                     print("Timeout reached. Ending performance evaluation...")
                     self.save_error_history()
                     self.destroy_node()
@@ -91,7 +104,16 @@ class PerformanceEvaluator(Node):
 def main(args=None):
     rclpy.init(args=args)
     print("Starting performance evaluation...")
-    target_sequence = [[0.8, 0, 0.8], [0.6, 0, 1.2]]
+    target_sequence = [
+        [0.45, -0.3, 0.4],
+        [0.7, -0.3, 0.4],
+        [0.7, -0.3, 0.8],
+        [0.45, -0.3, 0.8],
+        [0.45, 0.3, 0.8],
+        [0.7, 0.3, 0.8],
+        [0.7, 0.3, 0.4],
+        [0.45, 0.3, 0.4],
+    ]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
     performance_evaluator.send_target(target_sequence[0])  # Start the evaluation

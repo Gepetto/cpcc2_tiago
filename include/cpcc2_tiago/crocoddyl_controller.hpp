@@ -135,8 +135,11 @@ private:
   /// @brief rosbag writer to log data
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
 
-  /// @brief rosbag message to log data
-  std_msgs::msg::Float64MultiArray log_msg_;
+  /// @brief rosbag messages to log data
+  std_msgs::msg::Float64MultiArray log_msg_err_;
+  std_msgs::msg::Float64MultiArray log_msg_pos_;
+  std_msgs::msg::Float64MultiArray log_msg_eff_;
+  std_msgs::msg::Float64MultiArray log_msg_x_meas_;
 
   Model model_;
   Data data_;

@@ -163,13 +163,13 @@ int main() {
 
   // set the OCP costs weights and activation weights
   std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
-                                              {"xReg_weight", 5e-4},
+                                              {"xReg_weight", 1e-3},
                                               {"uReg_weight", 1e-4},
                                               {"xBounds_weight", 1}};
 
   VectorXd w_hand(6);
 
-  w_hand << VectorXd::Constant(3, 10), VectorXd::Constant(3, 0.0001);
+  w_hand << VectorXd::Constant(3, 5), VectorXd::Constant(3, 0.0001);
 
   VectorXd w_x(2 * model_.nv);
 
@@ -236,7 +236,6 @@ int main() {
       std::cout << "\x1b[A";
       std::cout << "New target: " << target_.transpose() << "            "
                 << std::endl;
-      std::cout << std::endl;
     }
 
     start_solving_time_ = read_current_t();
@@ -259,7 +258,7 @@ int main() {
 
     std::cout << "Solver frequency: " << std::setprecision(2)
               << solver_freq_vector_.vector.mean() << " Hz, solving time: "
-              << solving_time_vector_.vector.mean() * 10e-6 << " ms      "
+              << solving_time_vector_.vector.mean() * 10e-6 << " ms       "
               << std::endl;
     std::cout << "\x1b[A";
 

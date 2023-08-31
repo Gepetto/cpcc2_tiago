@@ -274,13 +274,12 @@ bool cpcc2_tiago::PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
 
-    interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x0_command,
-                                          data_.ddq, interpolate_t_ * 1e-9);
+    // interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x0_command,
+    //                                       data_.ddq, interpolate_t_ * 1e-9);
 
-    // interpolated_xs_ =
-    //     lin_interpolate_xs(ricatti_command_.x0_command,
-    //                        ricatti_command_.x1_command, interpolate_t_ *
-    //                        1e-9);
+    interpolated_xs_ =
+        lin_interpolate_xs(ricatti_command_.x0_command,
+                           ricatti_command_.x1_command, interpolate_t_ * 1e-9);
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 
