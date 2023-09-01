@@ -144,12 +144,12 @@ def main(args=None):
     target_sequence = [
         [0.5, -0.3, 0.6],
         [0.7, -0.3, 0.6],
-        # [0.7, -0.3, 0.8],
-        # [0.5, -0.3, 0.8],
-        # [0.5, 0.3, 0.8],
-        # [0.7, 0.3, 0.8],
-        # [0.7, 0.3, 0.4],
-        # [0.5, 0.3, 0.4],
+        [0.7, -0.3, 0.8],
+        [0.5, -0.3, 0.8],
+        [0.5, 0.3, 0.8],
+        [0.7, 0.3, 0.8],
+        [0.7, 0.3, 0.6],
+        [0.5, 0.3, 0.6],
     ]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
