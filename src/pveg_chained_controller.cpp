@@ -122,6 +122,10 @@ cpcc2_tiago::PvegChainedController::on_init() {
 
   data_ = Data(model_);
 
+  ricatti_command_pub_ =
+      get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+          "~/ricatti_command", 10);
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -274,7 +278,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
 
-    // interpolated_xs_ = tau_interpolate_xs(ricatti_command_.x0_command,
+    // interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
     //                                       data_.ddq, interpolate_t_ * 1e-9);
 
     interpolated_xs_ =
@@ -286,6 +290,11 @@ bool cpcc2_tiago::PvegChainedController::update() {
     eff_command_ =
         compute_ricatti_command(interpolated_ricatti_command_, measuredX_);
   }
+
+  // publish the ricatti command
+  ricatti_command_msg_.data.assign(eff_command_.data(),
+                                   eff_command_.data() + eff_command_.size());
+  ricatti_command_pub_->publish(ricatti_command_msg_);
 
   command_ = adapt_command_to_type(eff_command_, interpolated_ricatti_command_);
 
@@ -349,7 +358,7 @@ PvegChainedController::compute_ricatti_command(ricatti_command ric_cmd,
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.xinter_command - x);
 }
 
-Eigen::VectorXd PvegChainedController::tau_interpolate_xs(Eigen::VectorXd x0,
+Eigen::VectorXd PvegChainedController::aba_interpolate_xs(Eigen::VectorXd x0,
                                                           Eigen::VectorXd ddq,
                                                           double t) {
   Eigen::VectorXd q(model_.nq);

@@ -129,7 +129,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       end_effect_pos_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
-      torque_command_pub_;
+      effort_command_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr x_meas_pub_;
 
   /// @brief rosbag writer to log data
