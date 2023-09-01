@@ -19,21 +19,6 @@ void CrocoddylController::init_shared_memory() {
   current_t_shm_ = crocoddyl_shm_.find<double>("current_t_shm").first;
 }
 
-void CrocoddylController::update_target_from_subscriber(
-    const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-  if (msg->data.size() != 3) {
-    RCLCPP_ERROR(get_node()->get_logger(),
-                 "Target message has wrong size, should be 3");
-    return;
-  }
-  end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
-  mutex_.lock();
-  target_shm_->assign(end_effector_target_.data(),
-                      end_effector_target_.data() +
-                          end_effector_target_.size());
-  mutex_.unlock();
-}
-
 void CrocoddylController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
 }
@@ -364,6 +349,21 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   last_update_time_ = current_t_;
 
   return controller_interface::return_type::OK;
+}
+
+void CrocoddylController::update_target_from_subscriber(
+    const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
+  if (msg->data.size() != 3) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "Target message has wrong size, should be 3");
+    return;
+  }
+  end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
+  mutex_.lock();
+  target_shm_->assign(end_effector_target_.data(),
+                      end_effector_target_.data() +
+                          end_effector_target_.size());
+  mutex_.unlock();
 }
 
 void CrocoddylController::send_solver_current_t(double current_t) {

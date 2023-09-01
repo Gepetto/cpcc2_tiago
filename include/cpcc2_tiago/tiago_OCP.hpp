@@ -6,11 +6,8 @@
 #include "crocoddyl/core/costs/cost-sum.hpp"
 #include "crocoddyl/core/costs/residual.hpp"
 #include "crocoddyl/core/integrator/euler.hpp"
-#include "crocoddyl/core/mathbase.hpp"
-#include "crocoddyl/core/optctrl/shooting.hpp"
 #include "crocoddyl/core/residuals/control.hpp"
 #include "crocoddyl/core/solvers/fddp.hpp"
-#include "crocoddyl/core/utils/callbacks.hpp"
 #include "crocoddyl/multibody/actions/contact-fwddyn.hpp"
 #include "crocoddyl/multibody/actuations/full.hpp"
 #include "crocoddyl/multibody/contacts/contact-6d.hpp"
@@ -19,12 +16,8 @@
 #include "crocoddyl/multibody/residuals/state.hpp"
 #include "crocoddyl/multibody/states/multibody.hpp"
 #include "pinocchio//spatial/fwd.hpp"
-#include "pinocchio/algorithm/joint-configuration.hpp"
 #include "pinocchio/algorithm/kinematics.hpp"
 #include "pinocchio/algorithm/model.hpp"
-#include "pinocchio/fwd.hpp"
-#include "pinocchio/parsers/urdf.hpp"
-#include "pinocchio/spatial/se3-tpl.hpp"
 
 using namespace pinocchio;
 using namespace crocoddyl;

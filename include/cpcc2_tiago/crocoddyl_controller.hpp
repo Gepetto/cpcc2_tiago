@@ -3,18 +3,11 @@
 
 #include "boost/interprocess/containers/vector.hpp"
 #include "boost/interprocess/managed_shared_memory.hpp"
-#include "boost/interprocess/mapped_region.hpp"
 #include "boost/interprocess/shared_memory_object.hpp"
-#include "boost/interprocess/sync/interprocess_mutex.hpp"
 #include "boost/interprocess/sync/named_mutex.hpp"
 #include "boost/thread/thread_time.hpp"
 
-#include <ctime>
-#include <filesystem>
-
-#include "controller_interface/chainable_controller_interface.hpp"
 #include "controller_interface/controller_interface.hpp"
-#include "controller_interface/helpers.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/tiago_OCP.hpp"
 #include "cpcc2_tiago/visibility_control.h"
@@ -22,11 +15,6 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "pinocchio/algorithm/parallel/aba.hpp"
 #include "pluginlib/class_list_macros.hpp"
-#include "rclcpp/logging.hpp"
-#include "rclcpp/subscription.hpp"
-#include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
-#include "rclcpp_lifecycle/state.hpp"
-#include "realtime_tools/realtime_buffer.h"
 #include "rosbag2_cpp/writer.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 
