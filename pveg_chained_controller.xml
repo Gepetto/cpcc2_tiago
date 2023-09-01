@@ -1,7 +1,7 @@
 <library path="pveg_chained_controller">
   <class name="cpcc2_tiago/PvegChainedController" type="cpcc2_tiago::PvegChainedController" base_class_type="controller_interface::ChainableControllerInterface">
   <description>
-    The forward command controller commands a group of joints in a given interface
+    The controller charged with the Ricatii command calculation and the interpolation, it is the last controller in the chain, directly plug to Tiago's hardware interfaces.
   </description>
   </class>
 </library>

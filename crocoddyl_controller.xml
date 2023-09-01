@@ -1,7 +1,7 @@
 <library path="crocoddyl_controller">
   <class name="cpcc2_tiago/CrocoddylController" type="cpcc2_tiago::CrocoddylController" base_class_type="controller_interface::ControllerInterface">
   <description>
-    The forward command controller commands a group of joints in a given interface
+    The controller charged to gather the solution from the crocoddyl solver, log important data and send the commands to the pveg chained controller.
   </description>
   </class>
 </library>

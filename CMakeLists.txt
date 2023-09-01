@@ -37,10 +37,8 @@ find_package(ros2_control REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(generate_parameter_library REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
-find_package(Boost REQUIRED)
 find_package(crocoddyl REQUIRED)
-find_package(pinocchio REQUIRED)
-find_package(Eigen3 REQUIRED)
+
 
 include_directories(${crocoddyl_INCLUDE_DIRS})
 include_directories(${pinocchio_INCLUDE_DIRS})
@@ -55,7 +53,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-## python nodes
+## python scripts
 ament_python_install_package(${PROJECT_NAME})
 
 install(PROGRAMS
@@ -75,6 +73,9 @@ add_library(
   src/model_builder.cpp
 
 )
+
+target_link_libraries(crocoddyl_controller crocoddyl::crocoddyl)
+
 target_include_directories(
   crocoddyl_controller
   PRIVATE
@@ -82,18 +83,9 @@ target_include_directories(
 )
 ament_target_dependencies(
   crocoddyl_controller
-  controller_interface
-  hardware_interface
-  realtime_tools
-  pluginlib
-  rclcpp
-  rclcpp_lifecycle
-  spdlog
-  pinocchio
-  crocoddyl
+
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
-target_link_libraries(crocoddyl_controller /opt/openrobots/lib/libpinocchio.so)
 
 pluginlib_export_plugin_description_file(controller_interface crocoddyl_controller.xml)
 
@@ -147,15 +139,9 @@ target_include_directories(
 )
 ament_target_dependencies(
   pveg_chained_controller
-  controller_interface
-  hardware_interface
-  realtime_tools
-  pluginlib
-  rclcpp
-  rclcpp_lifecycle
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
-target_link_libraries(pveg_chained_controller /opt/openrobots/lib/libpinocchio.so)
+target_link_libraries(pveg_chained_controller crocoddyl::crocoddyl)
 
 pluginlib_export_plugin_description_file(controller_interface pveg_chained_controller.xml)
 
