@@ -174,7 +174,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     writer_->create_topic({"/end_effect_pos", "std_msgs/msg/Float64MultiArray",
                            rmw_get_serialization_format(), ""});
 
-    writer_->create_topic({"/torque_command", "std_msgs/msg/Float64MultiArray",
+    writer_->create_topic({"/effort_command", "std_msgs/msg/Float64MultiArray",
                            rmw_get_serialization_format(), ""});
 
     writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
@@ -192,9 +192,9 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
         get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
             "~/end_effect_pos", 10);
 
-    torque_command_pub_ =
+    effort_command_pub_ =
         get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
-            "~/torque_command", 10);
+            "~/effort_command", 10);
 
     x_meas_pub_ =
         get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
@@ -334,14 +334,14 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   if (params_.enable_file_logging) {
     writer_->write(log_msg_err_, "/end_effect_pos_error", current_t_);
     writer_->write(log_msg_pos_, "/end_effect_pos", current_t_);
-    writer_->write(log_msg_eff_, "/torque_command", current_t_);
+    writer_->write(log_msg_eff_, "/effort_command", current_t_);
     writer_->write(log_msg_x_meas_, "/x_meas", current_t_);
   }
 
   if (params_.enable_live_logging) {
     end_effect_pos_error_pub_->publish(log_msg_err_);
     end_effect_pos_pub_->publish(log_msg_pos_);
-    torque_command_pub_->publish(log_msg_eff_);
+    effort_command_pub_->publish(log_msg_eff_);
     x_meas_pub_->publish(log_msg_x_meas_);
   }
 

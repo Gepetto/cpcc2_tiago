@@ -6,6 +6,7 @@ It sends a sequence of targets to the controller and records the error and the
 time it takes to reach each target. To evalate if the task is done we compute the stantard deviation
 based on the last 1000 error samples. If the standard deviation is below a certain threshold and the
 current error is below 0.1, we consider the task done and move to the next target.
+It also log the full history of the error, the target, the ricatti command and the time.
 """
 
 import rclpy
@@ -13,7 +14,8 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 import sys
-import matplotlib.pyplot as plt
+import csv
+import os
 
 
 class PerformanceEvaluator(Node):
@@ -28,6 +30,13 @@ class PerformanceEvaluator(Node):
             self.error_callback,
             10,
         )
+        self.effort_subscriber = self.create_subscription(
+            Float64MultiArray,
+            "pveg_chained_controller/ricatti_command",
+            self.effort_callback,
+            10,
+        )
+
         self.error_subscriber  # To avoid the subscriber from being garbage collected
         self.target_sequence = target_sequence
         self.target_index = 0
@@ -37,7 +46,14 @@ class PerformanceEvaluator(Node):
         self.max_distance_variation = 0.0001
         self.num_error_samples = 1000  # Number of error samples to consider for std
         self.error_history = []
+        self.full_error_history = []
+        self.full_torque_history = []
+        self.full_time_history = []
+        self.full_target_history = []
+
         self.start_time = None
+        self.start_evaluation_time = self.get_clock().now()
+        self.path_to_log_file = "/home/jgleyze/cpcc2_evaluation/"
 
     def send_target(self, target):
         msg = Float64MultiArray(data=target)
@@ -53,20 +69,31 @@ class PerformanceEvaluator(Node):
         else:
             return np.linalg.norm(error, axis=1)
 
+    def effort_callback(self, msg):
+        self.full_torque_history.append(np.array(msg.data))
+
     def error_callback(self, msg):
         if self.started_evaluation and self.current_target is not None:
             current_error = np.array(msg.data)
             elapsed_time = (self.get_clock().now() - self.start_time).nanoseconds / 1e9
+            total_elapsed_time = (
+                self.get_clock().now() - self.start_evaluation_time
+            ).nanoseconds / 1e9
+
+            self.previous_errors = np.vstack((self.previous_errors, current_error))
+            current_distance = self.euclidean_distance(current_error)
+            previous_distance = self.euclidean_distance(
+                self.previous_errors[-self.num_error_samples : :]
+            )
+
+            self.full_error_history.append(current_error)
+            self.full_time_history.append(total_elapsed_time)
+            self.full_target_history.append(np.array(self.current_target))
 
             if len(self.previous_errors) < self.num_error_samples:
                 self.previous_errors = np.vstack((self.previous_errors, current_error))
 
             else:
-                self.previous_errors = np.vstack((self.previous_errors, current_error))
-                current_distance = self.euclidean_distance(current_error)
-                previous_distance = self.euclidean_distance(
-                    self.previous_errors[-self.num_error_samples : :]
-                )
                 if (
                     np.std(previous_distance) < self.max_distance_variation
                     and current_distance < 0.1
@@ -82,38 +109,47 @@ class PerformanceEvaluator(Node):
                         self.target_index += 1
                         self.send_target(self.target_sequence[self.target_index])
                     else:
-                        self.save_error_history()
-                        plt.scatter(
-                            [str(t) for t, _, _ in self.error_history],
-                            [e for _, e, _ in self.error_history],
-                        )
-                        plt.show()
+                        self.save_history()
                         sys.exit()
 
                 elif elapsed_time > 20:
                     print("Timeout reached. Ending performance evaluation...")
-                    self.save_error_history()
+                    self.save_history()
                     self.destroy_node()
                     sys.exit()
 
-    def save_error_history(self):
-        with open("error_history.txt", "w") as f:
+    def save_history(self):
+        try:
+            os.makedirs(os.path.dirname(self.path_to_log_file), exist_ok=True)
+        except OSError:
+            pass
+
+        with open(self.path_to_log_file + "error_history_lin.txt", "w") as f:
             for target, error, elapsed_time in self.error_history:
                 f.write(f"Target: {target}, Error: {error}, Elapsed Time: {elapsed_time}\n")
+        with open(self.path_to_log_file + "full_history_lin.csv", "w") as f:
+            writer = csv.writer(f)
+            for target, error, torque, time in zip(
+                self.full_target_history,
+                self.full_error_history,
+                self.full_torque_history,
+                self.full_time_history,
+            ):
+                writer.writerow(np.hstack((time, target, error.T, torque.T)))
 
 
 def main(args=None):
     rclpy.init(args=args)
     print("Starting performance evaluation...")
     target_sequence = [
-        [0.5, -0.3, 0.4],
-        [0.7, -0.3, 0.4],
-        [0.7, -0.3, 0.8],
-        [0.5, -0.3, 0.8],
-        [0.5, 0.3, 0.8],
-        [0.7, 0.3, 0.8],
-        [0.7, 0.3, 0.4],
-        [0.5, 0.3, 0.4],
+        [0.5, -0.3, 0.6],
+        [0.7, -0.3, 0.6],
+        # [0.7, -0.3, 0.8],
+        # [0.5, -0.3, 0.8],
+        # [0.5, 0.3, 0.8],
+        # [0.7, 0.3, 0.8],
+        # [0.7, 0.3, 0.4],
+        # [0.5, 0.3, 0.4],
     ]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent

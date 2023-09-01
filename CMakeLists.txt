@@ -60,6 +60,8 @@ ament_python_install_package(${PROJECT_NAME})
 
 install(PROGRAMS
   scripts/performance_evaluator.py
+  scripts/gui_target_sender.py
+  scripts/performance_plotter.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
