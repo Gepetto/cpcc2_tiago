@@ -185,16 +185,27 @@ public:
   boost::shared_ptr<crocoddyl::ActionDataAbstract>
   ada(const unsigned long node_id);
 
-  const Vector3d get_target() { return (target_); };
+  /// @brief return target
+  Vector3d get_target() { return (target_); };
+  /// @brief return the solver time step
   double get_time_step() { return (time_step_); };
+  /// @brief return the solver horizon length
   int get_horizon_length() { return (horizon_length_); };
-  const std::vector<VectorXd> get_us() { return (solver_->get_us()); };
-  const std::vector<VectorXd> get_xs() { return (solver_->get_xs()); };
-  const Eigen::MatrixXd get_gains() { return (solver_->get_K()[0]); };
+  /// @brief return the solver us
+  std::vector<VectorXd> get_us() { return (solver_->get_us()); };
+  /// @brief return the solver xs
+  std::vector<VectorXd> get_xs() { return (solver_->get_xs()); };
+  /// @brief return the solver gains
+  Eigen::MatrixXd get_gains() { return (solver_->get_K()[0]); };
+  /// @brief return the balancing torques
   Eigen::VectorXd get_balancing_torques() { return balancing_torques_; };
+  /// @brief return the solver state
   StateMultibody get_state() { return *state_; }
+  /// @brief return the solver actuation
   ActuationModelFull get_actuation() { return *actuation_; }
+  /// @brief return the solver problem
   boost::shared_ptr<ShootingProblem> get_problem() { return problem_; }
+  /// @brief return the solver
   SolverFDDP get_solver() { return *solver_; }
 };
 }; // namespace tiago_OCP

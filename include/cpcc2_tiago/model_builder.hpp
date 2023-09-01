@@ -25,9 +25,16 @@ namespace model_builder {
 /// @param joints Vector of the used joints names
 Model build_model(std::string urdf_path, std::vector<std::string> joints);
 
+/// @brief update the reduced model
+/// @param x Reduced posture
+/// @param model Reduced model
+/// @param data Reduced data
 void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
                           Model &model, Data &data);
 
+/// @brief Get the end effector SE3 from the reduced model
+/// @param data Reduced data
+/// @param end_effector_id End effector frame index
 SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id);
 } // namespace model_builder
 
