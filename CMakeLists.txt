@@ -60,6 +60,7 @@ install(PROGRAMS
   scripts/performance_evaluator.py
   scripts/gui_target_sender.py
   scripts/performance_plotter.py
+  scripts/performance_full_plotter.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

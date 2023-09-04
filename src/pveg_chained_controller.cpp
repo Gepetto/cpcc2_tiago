@@ -126,6 +126,9 @@ cpcc2_tiago::PvegChainedController::on_init() {
       get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
           "~/ricatti_command", 10);
 
+  ddq_pub_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+      "~/ddq", 10);
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -273,6 +276,10 @@ bool cpcc2_tiago::PvegChainedController::update() {
     //    interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
         eff_command_); // compute ddq
+
+    // publish ddq
+    ddq_msg_.data.assign(data_.ddq.data(), data_.ddq.data() + data_.ddq.size());
+    ddq_pub_->publish(ddq_msg_);
 
     interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
                          .to_chrono<std::chrono::nanoseconds>()

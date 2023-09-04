@@ -92,9 +92,6 @@ void OCP::buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target) {
 
   balancing_torques_.resize(actuation_nu_);
   balancing_torques_ = computeBalancingTorques(x0);
-  std::cout << "balancing_torques: " << balancing_torques_.transpose()
-            << std::endl;
-
   setTarget(target);
 
   for (size_t node_id = 0; node_id < horizon_length_ + 1; node_id++) {
@@ -150,7 +147,7 @@ void OCP::recede() {
       solver_->get_problem()->get_runningDatas()[0]);
 }
 
-void OCP::updateRunModReference() {
+void OCP::updateRunModHandReference() {
 
   costs(horizon_length_ - 1)->get_costs().at("lh_goal")->active = true;
 
@@ -162,10 +159,24 @@ void OCP::updateRunModReference() {
       ->set_reference(lh_Mref_);
 }
 
+void OCP::updateRunModXRegReference(std::vector<VectorXd> x_Xreg) {
+  // update the reference of the last node
+  for (int i = 0; i < horizon_length_; i++) {
+    boost::static_pointer_cast<ResidualModelState>(
+        costs(i)->get_costs().at("xReg")->cost->get_residual())
+        ->set_reference(x_Xreg[i]);
+  }
+  // boost::static_pointer_cast<ResidualModelState>(
+  //     costs(horizon_length_ -
+  //     1)->get_costs().at("xReg")->cost->get_residual())
+  //     ->set_reference(x_Xreg.back());
+}
+
 void OCP::solve(VectorXd measured_x) {
   // recede the horizon and update the reference of the last node
   recede();
-  updateRunModReference();
+  updateRunModHandReference();
+  // updateRunModXRegReference(solver_->get_xs());
 
   warm_xs_ = solver_->get_xs();
   warm_xs_[0] = measured_x;

@@ -37,23 +37,28 @@ class PerformanceEvaluator(Node):
             10,
         )
 
+        self.ddq_subscriber = self.create_subscription(
+            Float64MultiArray, "pveg_chained_controller/ddq", self.ddq_callback, 10
+        )
+
         self.error_subscriber  # To avoid the subscriber from being garbage collected
         self.target_sequence = target_sequence
         self.target_index = 0
         self.current_target = None
         self.previous_errors = np.array([1e3, 1e3, 1e3])
         self.started_evaluation = False
-        self.max_distance_variation = 0.0001
+        self.max_distance_variation = 0.0005
         self.num_error_samples = 1000  # Number of error samples to consider for std
         self.error_history = []
         self.full_error_history = []
-        self.full_torque_history = []
+        self.full_effort_history = []
+        self.full_ddq_history = []
         self.full_time_history = []
         self.full_target_history = []
 
         self.start_time = None
         self.start_evaluation_time = self.get_clock().now()
-        self.path_to_log_file = "/home/jgleyze/cpcc2_evaluation/"
+        self.path_to_log_file = sys.argv[1]
 
     def send_target(self, target):
         msg = Float64MultiArray(data=target)
@@ -65,12 +70,15 @@ class PerformanceEvaluator(Node):
 
     def euclidean_distance(self, error):
         if error.ndim == 1:
-            return np.linalg.norm(error)
+            return np.linalg.norm(error, ord=2)
         else:
-            return np.linalg.norm(error, axis=1)
+            return np.linalg.norm(error, ord=2, axis=1)
 
     def effort_callback(self, msg):
-        self.full_torque_history.append(np.array(msg.data))
+        self.full_effort_history.append(np.array(msg.data))
+
+    def ddq_callback(self, msg):
+        self.full_ddq_history.append(np.array(msg.data))
 
     def error_callback(self, msg):
         if self.started_evaluation and self.current_target is not None:
@@ -102,7 +110,7 @@ class PerformanceEvaluator(Node):
                         (self.current_target, current_distance, elapsed_time)
                     )
                     print(
-                        f"Target: {self.current_target}, Error: {current_distance}, Elapsed Time: {elapsed_time} s"
+                        f"Target: {self.current_target}, Error: {round(1e3 * current_distance, 2)} mm, Elapsed Time: {round(elapsed_time,2)} s"
                     )
 
                     if self.target_index < len(self.target_sequence) - 1:
@@ -112,7 +120,7 @@ class PerformanceEvaluator(Node):
                         self.save_history()
                         sys.exit()
 
-                elif elapsed_time > 20:
+                elif elapsed_time > 30:
                     print("Timeout reached. Ending performance evaluation...")
                     self.save_history()
                     self.destroy_node()
@@ -129,27 +137,28 @@ class PerformanceEvaluator(Node):
                 f.write(f"Target: {target}, Error: {error}, Elapsed Time: {elapsed_time}\n")
         with open(self.path_to_log_file + "full_history_lin.csv", "w") as f:
             writer = csv.writer(f)
-            for target, error, torque, time in zip(
+            for target, error, effort, ddq, time in zip(
                 self.full_target_history,
                 self.full_error_history,
-                self.full_torque_history,
+                self.full_effort_history,
+                self.full_ddq_history,
                 self.full_time_history,
             ):
-                writer.writerow(np.hstack((time, target, error.T, torque.T)))
+                writer.writerow(np.hstack((time, target, error.T, effort.T, ddq.T)))
 
 
 def main(args=None):
     rclpy.init(args=args)
     print("Starting performance evaluation...")
     target_sequence = [
-        [0.5, -0.3, 0.6],
-        [0.7, -0.3, 0.6],
-        [0.7, -0.3, 0.8],
-        [0.5, -0.3, 0.8],
-        [0.5, 0.3, 0.8],
-        [0.7, 0.3, 0.8],
-        [0.7, 0.3, 0.6],
-        [0.5, 0.3, 0.6],
+        [0.5, -0.35, 0.5],
+        [0.7, -0.35, 0.5],
+        [0.7, -0.35, 0.8],
+        [0.5, -0.35, 0.8],
+        [0.5, 0.35, 0.8],
+        [0.7, 0.35, 0.8],
+        [0.7, 0.35, 0.5],
+        [0.5, 0.35, 0.5],
     ]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent

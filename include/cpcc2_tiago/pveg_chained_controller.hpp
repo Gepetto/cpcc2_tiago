@@ -122,6 +122,10 @@ private:
 
   std_msgs::msg::Float64MultiArray ricatti_command_msg_;
 
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr ddq_pub_;
+
+  std_msgs::msg::Float64MultiArray ddq_msg_;
+
   /// @brief shared mutex to prevent miswriting on used variable
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                           "crocoddyl_mutex"};

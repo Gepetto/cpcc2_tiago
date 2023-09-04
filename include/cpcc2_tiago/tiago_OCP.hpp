@@ -125,7 +125,9 @@ public:
   void recede();
 
   /// @brief update the reference for the last running model
-  void updateRunModReference();
+  void updateRunModHandReference();
+
+  void updateRunModXRegReference(std::vector<VectorXd> x_Xreg);
 
   /// @brief compute the balancing torques for the current state
   /// @param x0 current state
