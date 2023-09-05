@@ -62,6 +62,8 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   current_state_.position.resize(n_joints_);
   current_state_.velocity.resize(n_joints_);
 
+  real_effort_.resize(n_joints_);
+
   x_meas_.resize(2 * n_joints_);
 
   RCLCPP_INFO(get_node()->get_logger(),
@@ -162,6 +164,9 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     writer_->create_topic({"/effort_command", "std_msgs/msg/Float64MultiArray",
                            rmw_get_serialization_format(), ""});
 
+    writer_->create_topic({"/real_effort", "std_msgs/msg/Float64MultiArray",
+                           rmw_get_serialization_format(), ""});
+
     writer_->create_topic({"/x_meas", "std_msgs/msg/Float64MultiArray",
                            rmw_get_serialization_format(), ""});
   }
@@ -180,6 +185,10 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     effort_command_pub_ =
         get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
             "~/effort_command", 10);
+
+    real_effort_pub_ =
+        get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
+            "~/real_effort", 10);
 
     x_meas_pub_ =
         get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
@@ -267,7 +276,9 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   send_solver_current_t(current_t_.nanoseconds());
 
-  read_state_from_hardware(current_state_);
+  current_state_ = read_state_from_hardware();
+
+  real_effort_ = read_effort_from_hardware();
 
   x_meas_ << current_state_.position, current_state_.velocity;
 
@@ -314,12 +325,16 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   log_msg_eff_.data.assign(us_.data(), us_.data() + us_.size());
 
+  log_msg_real_eff_.data.assign(real_effort_.data(),
+                                real_effort_.data() + real_effort_.size());
+
   log_msg_x_meas_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
 
   if (params_.enable_file_logging) {
     writer_->write(log_msg_err_, "/end_effect_pos_error", current_t_);
     writer_->write(log_msg_pos_, "/end_effect_pos", current_t_);
     writer_->write(log_msg_eff_, "/effort_command", current_t_);
+    writer_->write(log_msg_real_eff_, "/real_effort", current_t_);
     writer_->write(log_msg_x_meas_, "/x_meas", current_t_);
   }
 
@@ -327,6 +342,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
     end_effect_pos_error_pub_->publish(log_msg_err_);
     end_effect_pos_pub_->publish(log_msg_pos_);
     effort_command_pub_->publish(log_msg_eff_);
+    real_effort_pub_->publish(log_msg_real_eff_);
     x_meas_pub_->publish(log_msg_x_meas_);
   }
 
@@ -341,9 +357,8 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
 
   // print update frequency
 
-  std::cout << "Controllers update frequency: "
-            << update_freq_vector_.vector.mean() << " Hz           "
-            << std::endl;
+  std::cout << "Controllers update freq: " << update_freq_vector_.vector.mean()
+            << " Hz           " << std::endl;
   std::cout << "\x1b[A";
 
   last_update_time_ = current_t_;
@@ -392,12 +407,27 @@ void CrocoddylController::read_solver_results() {
   mutex_.unlock();
 }
 
-void CrocoddylController::read_state_from_hardware(state &current_state) {
+CrocoddylController::state CrocoddylController::read_state_from_hardware() {
+
+  CrocoddylController::state current_state;
+  current_state.position.resize(n_joints_);
+  current_state.velocity.resize(n_joints_);
   // read the state from the hardware
   for (int i = 0; i < n_joints_; ++i) {
     current_state.position[i] = state_interfaces_[i].get_value();
     current_state.velocity[i] = state_interfaces_[n_joints_ + i].get_value();
   }
+
+  return current_state;
+}
+
+Eigen::VectorXd CrocoddylController::read_effort_from_hardware() {
+  Eigen::VectorXd effort(n_joints_);
+  // read the effort from the hardware
+  for (int i = 0; i < n_joints_; ++i) {
+    effort[i] = state_interfaces_[2 * n_joints_ + i].get_value();
+  }
+  return effort;
 }
 
 void CrocoddylController::set_u_command(VectorXd command_u) {

@@ -53,17 +53,21 @@ def parse_log_file(log_file_path):
         times = []
         targets = np.empty((rows_nb, 3))
         errors = np.empty((rows_nb, 3))
-        torques = np.empty((rows_nb, 5))
+        croc_torques = np.empty((rows_nb, 5))
+        ric_torques = np.empty((rows_nb, 5))
+        real_torques = np.empty((rows_nb, 5))
         ddqs = np.empty((rows_nb, 5))
 
         for i, row in zip(range(rows_nb), reader):
             times.append(float(row[0]))
             targets[i] = [float(x) for x in row[1:4]]
             errors[i] = [float(x) for x in row[4:7]]
-            torques[i] = [float(x) for x in row[7:12]]
-            ddqs[i] = [float(x) for x in row[12::]]
+            croc_torques[i] = [float(x) for x in row[7:12]]
+            ric_torques[i] = [float(x) for x in row[12:17]]
+            real_torques[i] = [float(x) for x in row[17:22]]
+            ddqs[i] = [float(x) for x in row[22::]]
 
-    return times, targets, errors, torques, ddqs
+    return times, targets, errors, croc_torques, ric_torques, real_torques, ddqs
 
 
 def calculate_jerk(ddqs, times):
@@ -89,24 +93,45 @@ def main():
     titles = ["ABA", "Linear", "None"]
 
     for i in range(3):
-        times, targets, errors, torques, ddqs = parse_log_file(sys.argv[1] + csv_file_names[i])
+        (
+            times,
+            targets,
+            errors,
+            croc_torques,
+            ric_torques,
+            real_torques,
+            ddqs,
+        ) = parse_log_file(sys.argv[1] + csv_file_names[i])
         jerks = calculate_jerk(ddqs, times)
 
-        layout = [["torque"], ["acceleration"], ["jerk"]]
+        layout = [
+            ["croc_torque", "ric_torque", "real_torque"],
+            ["acceleration", "", "jerk"],
+        ]
 
         fig, axd = plt.subplot_mosaic(layout)
 
-        axd["torque"].plot(times, [torques[i, :] for i in range(len(torques))])
-        axd["torque"].set_xlabel("Time (s)")
-        axd["torque"].set_ylabel("Torque (Nm)")
-        axd["torque"].set_title(f"Torque history {titles[i]}")
+        axd["croc_torque"].plot(times, [croc_torques[i, :] for i in range(len(croc_torques))])
+        axd["croc_torque"].set_xlabel("Time (s)")
+        axd["croc_torque"].set_ylabel("Torque (Nm)")
+        axd["croc_torque"].set_title(f"Crocoddyl torque history {titles[i]}")
+
+        axd["ric_torque"].plot(times, [ric_torques[i, :] for i in range(len(ric_torques))])
+        axd["ric_torque"].set_xlabel("Time (s)")
+        axd["ric_torque"].set_ylabel("Torque (Nm)")
+        axd["ric_torque"].set_title(f"Ricatti torque history {titles[i]}")
+
+        axd["real_torques"].plot(times, [real_torques[i, :] for i in range(len(real_torques))])
+        axd["real_torques"].set_xlabel("Time (s)")
+        axd["real_torques"].set_ylabel("Torque (Nm)")
+        axd["real_torques"].set_title(f"Real torque history {titles[i]}")
 
         axd["acceleration"].plot(times, [ddqs[i, :] for i in range(len(ddqs))])
         axd["acceleration"].set_xlabel("Time (s)")
         axd["acceleration"].set_ylabel("Acceleration (rad/s²)")
         axd["acceleration"].set_title(f"Acceleration history {titles[i]}")
 
-        axd["jerk"].plot(times[:-1], [jerks[i, :] + 1 for i in range(len(jerks))])
+        axd["jerk"].plot(times[:-1], [jerks[i, :] for i in range(len(jerks))])
         axd["jerk"].set_xlabel("Time (s)")
         axd["jerk"].set_ylabel("Jerk (rad/s³)")
         axd["jerk"].set_title(f"Jerk history {titles[i]}")

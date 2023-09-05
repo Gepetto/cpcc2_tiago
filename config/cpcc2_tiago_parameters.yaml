@@ -17,7 +17,7 @@ cpcc2_tiago:
   }
   state_interfaces_name: {
     type: string_array,
-    default_value : [position, velocity],
+    default_value : [position, velocity, effort],
     description: "Name of the state interface",
   }
 

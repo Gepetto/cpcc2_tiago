@@ -160,16 +160,14 @@ void OCP::updateRunModHandReference() {
 }
 
 void OCP::updateRunModXRegReference(std::vector<VectorXd> x_Xreg) {
-  // update the reference of the last node
-  for (int i = 0; i < horizon_length_; i++) {
+  for (size_t i = 0; i < horizon_length_ - 1; i++) {
     boost::static_pointer_cast<ResidualModelState>(
         costs(i)->get_costs().at("xReg")->cost->get_residual())
-        ->set_reference(x_Xreg[i]);
+        ->set_reference(x_Xreg[i + 1]);
   }
-  // boost::static_pointer_cast<ResidualModelState>(
-  //     costs(horizon_length_ -
-  //     1)->get_costs().at("xReg")->cost->get_residual())
-  //     ->set_reference(x_Xreg.back());
+  boost::static_pointer_cast<ResidualModelState>(
+      costs(horizon_length_ - 1)->get_costs().at("xReg")->cost->get_residual())
+      ->set_reference(x_Xreg.back());
 }
 
 void OCP::solve(VectorXd measured_x) {
@@ -179,11 +177,13 @@ void OCP::solve(VectorXd measured_x) {
   // updateRunModXRegReference(solver_->get_xs());
 
   warm_xs_ = solver_->get_xs();
+  warm_xs_.erase(warm_xs_.begin());
   warm_xs_[0] = measured_x;
+  warm_xs_.push_back(warm_xs_.back());
 
   warm_us_ = solver_->get_us();
   warm_us_.erase(warm_us_.begin());
-  warm_us_.push_back(warm_us_[warm_us_.size() - 1]);
+  warm_us_.push_back(warm_us_.back());
 
   solver_->get_problem()->set_x0(measured_x);
   solver_->allocateData();

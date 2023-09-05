@@ -118,6 +118,8 @@ private:
       end_effect_pos_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       effort_command_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+      real_effort_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr x_meas_pub_;
 
   /// @brief rosbag writer to log data
@@ -127,6 +129,7 @@ private:
   std_msgs::msg::Float64MultiArray log_msg_err_;
   std_msgs::msg::Float64MultiArray log_msg_pos_;
   std_msgs::msg::Float64MultiArray log_msg_eff_;
+  std_msgs::msg::Float64MultiArray log_msg_real_eff_;
   std_msgs::msg::Float64MultiArray log_msg_x_meas_;
 
   Model model_;
@@ -169,6 +172,8 @@ private:
   /// @brief Current state at time t, overwritten next timestep
   state current_state_;
 
+  Eigen::VectorXd real_effort_;
+
   Eigen::Vector3d end_effector_target_;
   Eigen::Vector3d end_effector_pos_;
 
@@ -192,7 +197,10 @@ private:
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
   /// @param current_state the current state to be updated
-  void read_state_from_hardware(state &current_state);
+
+  state read_state_from_hardware();
+
+  Eigen::VectorXd read_effort_from_hardware();
 
   /// @brief Callback to update the target from the subscriber
   /// @param msg the message containing the target

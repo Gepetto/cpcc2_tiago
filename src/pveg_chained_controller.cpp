@@ -85,8 +85,7 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
-controller_interface::CallbackReturn
-cpcc2_tiago::PvegChainedController::on_init() {
+controller_interface::CallbackReturn PvegChainedController::on_init() {
   // In the init we try do read the parameters
 
   try {
@@ -133,7 +132,7 @@ cpcc2_tiago::PvegChainedController::on_init() {
 }
 
 controller_interface::InterfaceConfiguration
-cpcc2_tiago::PvegChainedController::command_interface_configuration() const {
+PvegChainedController::command_interface_configuration() const {
   // Configuration of the command interfaces, be it names and types, stored in
   // the cpcc2_tiago_parameters.yaml file
   controller_interface::InterfaceConfiguration command_interfaces_config;
@@ -146,7 +145,7 @@ cpcc2_tiago::PvegChainedController::command_interface_configuration() const {
 }
 
 controller_interface::InterfaceConfiguration
-cpcc2_tiago::PvegChainedController::state_interface_configuration() const {
+PvegChainedController::state_interface_configuration() const {
   // Configuration of the state interfaces, be it names and types, stored in the
   // cpcc2_tiago_parameters.yaml file
   controller_interface::InterfaceConfiguration state_interfaces_config;
@@ -160,7 +159,7 @@ cpcc2_tiago::PvegChainedController::state_interface_configuration() const {
 }
 
 std::vector<hardware_interface::CommandInterface>
-cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
+PvegChainedController::on_export_reference_interfaces() {
   RCLCPP_INFO(get_node()->get_logger(), "export_reference_interfaces");
 
   std::vector<hardware_interface::CommandInterface> reference_interfaces;
@@ -217,8 +216,7 @@ cpcc2_tiago::PvegChainedController::on_export_reference_interfaces() {
   return reference_interfaces;
 }
 
-bool cpcc2_tiago::PvegChainedController::on_set_chained_mode(
-    bool chained_mode) {
+bool PvegChainedController::on_set_chained_mode(bool chained_mode) {
   RCLCPP_INFO(get_node()->get_logger(), "CHAINED MODE ACTIVE YOUHOUUU");
 
   chained_mode = true;
@@ -227,7 +225,7 @@ bool cpcc2_tiago::PvegChainedController::on_set_chained_mode(
 }
 
 controller_interface::return_type
-cpcc2_tiago::PvegChainedController::update_reference_from_subscribers() {
+PvegChainedController::update_reference_from_subscribers() {
   RCLCPP_INFO_ONCE(get_node()->get_logger(),
                    "update_reference_from_subscribers");
   return update() ? controller_interface::return_type::OK
@@ -235,14 +233,14 @@ cpcc2_tiago::PvegChainedController::update_reference_from_subscribers() {
 }
 
 controller_interface::return_type
-cpcc2_tiago::PvegChainedController::update_and_write_commands(
+PvegChainedController::update_and_write_commands(
     const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
   RCLCPP_INFO_ONCE(get_node()->get_logger(), "update_and_write_commands");
   return update() ? controller_interface::return_type::OK
                   : controller_interface::return_type::ERROR;
 }
 
-bool cpcc2_tiago::PvegChainedController::update() {
+bool PvegChainedController::update() {
   // first we read the current state of the robot
 
   if (start_sending_cmd_ == false) {
@@ -252,7 +250,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
     return true;
   }
 
-  read_state_from_hardware(current_state_);
+  current_state_ = read_state_from_hardware();
 
   measuredX_ << current_state_.position, current_state_.velocity;
 
@@ -260,7 +258,7 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
   last_ricatti_command_ = ricatti_command_;
 
-  read_joints_commands(ricatti_command_);
+  ricatti_command_ = read_joints_commands();
   ricatti_command_.xinter_command = ricatti_command_.x0_command;
 
   if (ricatti_command_ != last_ricatti_command_) {
@@ -271,9 +269,10 @@ bool cpcc2_tiago::PvegChainedController::update() {
 
     // compute the ricatti command
     eff_command_ = compute_ricatti_command(ricatti_command_, measuredX_);
+    // eff_command_ = ricatti_command_.u_command;
 
   } else {
-    //    interpolate
+    // interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
         eff_command_); // compute ddq
 
@@ -310,7 +309,17 @@ bool cpcc2_tiago::PvegChainedController::update() {
   return true;
 }
 
-void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
+PvegChainedController::ricatti_command
+PvegChainedController::read_joints_commands() {
+
+  PvegChainedController::ricatti_command ric_cmd;
+
+  ric_cmd.u_command.resize(n_joints_);
+  ric_cmd.x0_command.resize(2 * n_joints_);
+  ric_cmd.xinter_command.resize(2 * n_joints_);
+  ric_cmd.x1_command.resize(2 * n_joints_);
+  ric_cmd.K_command.resize(n_joints_, 2 * n_joints_);
+
   double command_u;
   double command_q0;
   double command_v0;
@@ -349,13 +358,19 @@ void PvegChainedController::read_joints_commands(ricatti_command &ric_cmd) {
     ric_cmd.x1_command[n_joints_ + i] =
         (command_v1 == command_v1) ? command_v1 : command_v0;
   }
+
+  return ric_cmd;
 }
 
-void PvegChainedController::read_state_from_hardware(state &curr_state) {
+PvegChainedController::state PvegChainedController::read_state_from_hardware() {
+  PvegChainedController::state curr_state;
+  curr_state.position.resize(n_joints_);
+  curr_state.velocity.resize(n_joints_);
   for (int i = 0; i < n_joints_; ++i) {
     curr_state.position[i] = state_interfaces_[i].get_value();
     curr_state.velocity[i] = state_interfaces_[n_joints_ + i].get_value();
   }
+  return curr_state;
 }
 
 Eigen::VectorXd

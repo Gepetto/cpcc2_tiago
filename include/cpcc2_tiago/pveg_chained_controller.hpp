@@ -192,12 +192,12 @@ private:
   void init_shared_memory();
 
   /// @brief Read the command from the reference interfaces
-  /// @param ric_com Ricatti command to write to
-  void read_joints_commands(ricatti_command &ric_com);
+  /// @return return the commands
+  ricatti_command read_joints_commands();
 
   /// @brief Read the state from the hardware
-  /// @param curr_state Current State to write to
-  void read_state_from_hardware(state &curr_state);
+  /// @return return the state
+  state read_state_from_hardware();
 
   /// @brief Compute the ricatti command u = u* + K*(x - x*)
   /// @param ric_cmd Ricatti command

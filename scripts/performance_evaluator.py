@@ -30,10 +30,24 @@ class PerformanceEvaluator(Node):
             self.error_callback,
             10,
         )
-        self.effort_subscriber = self.create_subscription(
+        self.ric_effort_subscriber = self.create_subscription(
             Float64MultiArray,
             "pveg_chained_controller/ricatti_command",
-            self.effort_callback,
+            self.ric_effort_callback,
+            10,
+        )
+
+        self.croc_effort_subscriber = self.create_subscription(
+            Float64MultiArray,
+            "crocoddyl_controller/effort_command",
+            self.croc_effort_callback,
+            10,
+        )
+
+        self.real_effort_subscriber = self.create_subscription(
+            Float64MultiArray,
+            "crocoddyl_controller/real_effort",
+            self.real_effort_callback,
             10,
         )
 
@@ -51,7 +65,9 @@ class PerformanceEvaluator(Node):
         self.num_error_samples = 1000  # Number of error samples to consider for std
         self.error_history = []
         self.full_error_history = []
-        self.full_effort_history = []
+        self.full_ric_effort_history = []
+        self.full_croc_effort_history = []
+        self.full_real_effort_history = []
         self.full_ddq_history = []
         self.full_time_history = []
         self.full_target_history = []
@@ -59,6 +75,7 @@ class PerformanceEvaluator(Node):
         self.start_time = None
         self.start_evaluation_time = self.get_clock().now()
         self.path_to_log_file = sys.argv[1]
+        self.suffix = sys.argv[2]
 
     def send_target(self, target):
         msg = Float64MultiArray(data=target)
@@ -74,8 +91,14 @@ class PerformanceEvaluator(Node):
         else:
             return np.linalg.norm(error, ord=2, axis=1)
 
-    def effort_callback(self, msg):
-        self.full_effort_history.append(np.array(msg.data))
+    def ric_effort_callback(self, msg):
+        self.full_ric_effort_history.append(np.array(msg.data))
+
+    def croc_effort_callback(self, msg):
+        self.full_croc_effort_history.append(np.array(msg.data))
+
+    def real_effort_callback(self, msg):
+        self.full_real_effort_history.append(np.array(msg.data))
 
     def ddq_callback(self, msg):
         self.full_ddq_history.append(np.array(msg.data))
@@ -132,19 +155,33 @@ class PerformanceEvaluator(Node):
         except OSError:
             pass
 
-        with open(self.path_to_log_file + "error_history_lin.txt", "w") as f:
+        with open(self.path_to_log_file + "error_history_" + self.suffix + ".txt", "w") as f:
             for target, error, elapsed_time in self.error_history:
                 f.write(f"Target: {target}, Error: {error}, Elapsed Time: {elapsed_time}\n")
-        with open(self.path_to_log_file + "full_history_lin.csv", "w") as f:
+        with open(self.path_to_log_file + "full_history_" + self.suffix + ".csv", "w") as f:
             writer = csv.writer(f)
-            for target, error, effort, ddq, time in zip(
+            for target, error, ric_effort, croc_effort, real_effort, ddq, time in zip(
                 self.full_target_history,
                 self.full_error_history,
-                self.full_effort_history,
+                self.full_ric_effort_history,
+                self.full_croc_effort_history,
+                self.full_real_effort_history,
                 self.full_ddq_history,
                 self.full_time_history,
             ):
-                writer.writerow(np.hstack((time, target, error.T, effort.T, ddq.T)))
+                writer.writerow(
+                    np.hstack(
+                        (
+                            time,
+                            target,
+                            error.T,
+                            croc_effort.T,
+                            ric_effort.T,
+                            real_effort.T,
+                            ddq.T,
+                        )
+                    )
+                )
 
 
 def main(args=None):
@@ -160,6 +197,7 @@ def main(args=None):
         [0.7, 0.35, 0.5],
         [0.5, 0.35, 0.5],
     ]
+    target_sequence = target_sequence[::-1]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
     performance_evaluator.send_target(target_sequence[0])  # Start the evaluation

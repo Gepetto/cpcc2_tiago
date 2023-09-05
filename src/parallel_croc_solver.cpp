@@ -256,9 +256,9 @@ int main() {
     solving_time_vector_.circular_append(solving_time_);
     solver_freq_vector_.circular_append(solver_freq_);
 
-    std::cout << "Solver frequency: " << std::setprecision(2)
-              << solver_freq_vector_.vector.mean() << " Hz, solving time: "
-              << solving_time_vector_.vector.mean() * 10e-6 << " ms       "
+    std::cout << "Solv freq: " << std::setprecision(2)
+              << solver_freq_vector_.vector.mean() << " Hz, in "
+              << solving_time_vector_.vector.mean() * 10e-6 << " ms     "
               << std::endl;
     std::cout << "\x1b[A";
 
