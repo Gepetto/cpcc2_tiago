@@ -59,8 +59,7 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
   Ks_.resize(n_joints_, 2 * n_joints_);
 
   // same for the current state
-  current_state_.position.resize(n_joints_);
-  current_state_.velocity.resize(n_joints_);
+  current_state_ = State(n_joints_);
 
   real_effort_.resize(n_joints_);
 
@@ -374,6 +373,7 @@ void CrocoddylController::update_target_from_subscriber(
     return;
   }
   end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
+  // write the target to the shared memory
   mutex_.lock();
   target_shm_->assign(end_effector_target_.data(),
                       end_effector_target_.data() +
@@ -407,12 +407,27 @@ void CrocoddylController::read_solver_results() {
   mutex_.unlock();
 }
 
-CrocoddylController::state CrocoddylController::read_state_from_hardware() {
+CrocoddylController::State CrocoddylController::read_state_from_hardware() {
 
-  CrocoddylController::state current_state;
-  current_state.position.resize(n_joints_);
-  current_state.velocity.resize(n_joints_);
+  CrocoddylController::State current_state(n_joints_);
+
   // read the state from the hardware
+  // the state interfaces are as is :
+  // /joint_name0/position
+  // /joint_name1/position
+  // ...
+  // /joint_nameN/position
+
+  // /joint_name0/velocity
+  // /joint_name1/velocity
+  // ...
+  // /joint_nameN/velocity
+
+  // /joint_name0/effort
+  // /joint_name1/effort
+  // ...
+  // /joint_nameN/effort
+
   for (int i = 0; i < n_joints_; ++i) {
     current_state.position[i] = state_interfaces_[i].get_value();
     current_state.velocity[i] = state_interfaces_[n_joints_ + i].get_value();

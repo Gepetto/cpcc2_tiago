@@ -68,9 +68,15 @@ public:
   controller_interface::CallbackReturn read_parameters();
 
 private:
-  struct state {
+  struct State {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
+
+    State() {}
+    State(int n_joints) {
+      position.resize(n_joints);
+      velocity.resize(n_joints);
+    }
   };
 
   // circular vector to store values over time and calculate the rolling mean
@@ -92,6 +98,10 @@ private:
   std::shared_ptr<ParamListener> param_listener_;
   Params params_;
 
+  /// @brief all types of state interface, in our case effort, velocity,
+  /// position
+  std::vector<std::string> state_interface_types_;
+
   int n_joints_;
   std::vector<std::string> joints_names_;
 
@@ -104,6 +114,7 @@ private:
   typedef boost::interprocess::allocator<
       double, boost::interprocess::managed_shared_memory::segment_manager>
       shm_allocator;
+
   // Alias a vector that uses the previous STL-like allocator
   typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
 
@@ -165,12 +176,8 @@ private:
   double update_freq_;
   CircularVector update_freq_vector_ = CircularVector(50);
 
-  /// @brief all types of state interface, in our case effort, velocity,
-  /// position
-  std::vector<std::string> state_interface_types_;
-
   /// @brief Current state at time t, overwritten next timestep
-  state current_state_;
+  State current_state_;
 
   Eigen::VectorXd real_effort_;
 
@@ -197,8 +204,7 @@ private:
   /// @brief Read the actuators state, eff, vel, pos from the hardware
   /// interface
   /// @param current_state the current state to be updated
-
-  state read_state_from_hardware();
+  State read_state_from_hardware();
 
   Eigen::VectorXd read_effort_from_hardware();
 

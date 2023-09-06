@@ -93,29 +93,62 @@ protected:
 
 private:
   /// @brief struct to hold the different Ricatti commands
-  struct ricatti_command {
+  struct RicattiCommand {
     Eigen::VectorXd u_command;
     Eigen::VectorXd x0_command;
     Eigen::VectorXd xinter_command;
     Eigen::VectorXd x1_command;
     Eigen::MatrixXd K_command;
 
-    bool operator==(const ricatti_command &rhs) const {
+    RicattiCommand() {}
+
+    RicattiCommand(int n_joints) {
+      u_command.resize(n_joints);
+      x0_command.resize(2 * n_joints);
+      xinter_command.resize(2 * n_joints);
+      x1_command.resize(2 * n_joints);
+      K_command.resize(n_joints, 2 * n_joints);
+    }
+
+    bool operator==(const RicattiCommand &rhs) const {
       return (u_command == rhs.u_command && x0_command == rhs.x0_command &&
               x1_command == rhs.x1_command && K_command == rhs.K_command);
     }
 
-    bool operator!=(const ricatti_command &rhs) const {
+    bool operator!=(const RicattiCommand &rhs) const {
       return (u_command != rhs.u_command || x0_command != rhs.x0_command ||
               x1_command != rhs.x1_command || K_command != rhs.K_command);
     };
   };
 
   /// @brief struct to hold the current state of the robot
-  struct state {
+  struct State {
     Eigen::VectorXd position;
     Eigen::VectorXd velocity;
+
+    State() {}
+    State(int n_joints) {
+      position.resize(n_joints);
+      velocity.resize(n_joints);
+    }
   };
+
+  /// @brief list of all command interfaces, in this case effort for each
+  /// joint
+  std::vector<std::string> command_interface_types_;
+
+  /// @brief all types of state interface, in our case velocity,
+  /// position
+  std::vector<std::string> state_interface_types_;
+
+  /// @brief listener object to read ros2 param
+  std::shared_ptr<ParamListener> param_listener_;
+
+  /// @brief Params object to list all parameters
+  Params params_;
+
+  /// @brief Number of joints
+  int n_joints_;
 
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       ricatti_command_pub_;
@@ -159,33 +192,16 @@ private:
   Eigen::VectorXd interpolated_xs_;
 
   /// @brief ricatti_command to store the last command
-  ricatti_command ricatti_command_;
+  RicattiCommand ricatti_command_;
 
   /// @brief ricatti_command to store the interpolated command
-  ricatti_command interpolated_ricatti_command_;
+  RicattiCommand interpolated_ricatti_command_;
 
   /// @brief ricatti_command to store the last command
-  ricatti_command last_ricatti_command_;
-
-  /// @brief list of all command interfaces, in this case effort for each
-  /// joint
-  std::vector<std::string> command_interface_types_;
-
-  /// @brief all types of state interface, in our case velocity,
-  /// position
-  std::vector<std::string> state_interface_types_;
-
-  /// @brief listener object to read ros2 param
-  std::shared_ptr<ParamListener> param_listener_;
-
-  /// @brief Params object to list all parameters
-  Params params_;
-
-  /// @brief Number of joints
-  int n_joints_;
+  RicattiCommand last_ricatti_command_;
 
   /// @brief state to store the current state of the robot
-  state current_state_;
+  State current_state_;
 
   /// @brief Initialize the shared memory, find the vector and tie them to
   /// variables
@@ -193,16 +209,16 @@ private:
 
   /// @brief Read the command from the reference interfaces
   /// @return return the commands
-  ricatti_command read_joints_commands();
+  RicattiCommand read_joints_commands();
 
   /// @brief Read the state from the hardware
   /// @return return the state
-  state read_state_from_hardware();
+  State read_state_from_hardware();
 
   /// @brief Compute the ricatti command u = u* + K*(x - x*)
   /// @param ric_cmd Ricatti command
   /// @param x Current State
-  Eigen::VectorXd compute_ricatti_command(ricatti_command ric_cmd,
+  Eigen::VectorXd compute_ricatti_command(RicattiCommand ric_cmd,
                                           Eigen::VectorXd x);
 
   /// @brief Interpolate the ricatti command q = q0 + v0*t + 1/2*a*t^2
@@ -224,7 +240,7 @@ private:
   /// @param eff_command Command to adapt
   /// @param ric_cmd Ricatti command to get the other command types
   Eigen::VectorXd adapt_command_to_type(Eigen::VectorXd eff_command,
-                                        ricatti_command ric_cmd);
+                                        RicattiCommand ric_cmd);
 
   /// @brief Set the adapted command to the command interfaces
   /// @param command Command to set, contain effort, pos or vel

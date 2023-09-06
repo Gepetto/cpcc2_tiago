@@ -6,7 +6,9 @@ It sends a sequence of targets to the controller and records the error and the
 time it takes to reach each target. To evalate if the task is done we compute the stantard deviation
 based on the last 1000 error samples. If the standard deviation is below a certain threshold and the
 current error is below 0.1, we consider the task done and move to the next target.
-It also log the full history of the error, the target, the ricatti command and the time.
+It also log the full history of the error, the target, the ricatti and crocoddyl command, the real torque and the time.
+The command to run the performance_evaluator.py script is:
+ros2 run cpcc2_tiago performance_evaluator /path/to/log/dir/ suffix
 """
 
 import rclpy
@@ -197,7 +199,6 @@ def main(args=None):
         [0.7, 0.35, 0.5],
         [0.5, 0.35, 0.5],
     ]
-    target_sequence = target_sequence[::-1]
     performance_evaluator = PerformanceEvaluator(target_sequence)
     rclpy.spin_once(performance_evaluator)  # Wait for the first target to be sent
     performance_evaluator.send_target(target_sequence[0])  # Start the evaluation

@@ -52,24 +52,8 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   reference_interfaces_.resize(
       n_joints_ + 2 * n_joints_ + n_joints_ * 2 * n_joints_ + 2 * n_joints_, 0);
 
-  // same for the current state
-  current_state_.position.resize(n_joints_);
-  current_state_.velocity.resize(n_joints_);
-
-  ricatti_command_.u_command.resize(n_joints_);
-  ricatti_command_.u_command.setZero();
-
-  ricatti_command_.x0_command.resize(2 * n_joints_);
-  ricatti_command_.x0_command.setZero();
-
-  ricatti_command_.xinter_command.resize(2 * n_joints_);
-  ricatti_command_.xinter_command.setZero();
-
-  ricatti_command_.x1_command.resize(2 * n_joints_);
-  ricatti_command_.x1_command.setZero();
-
-  ricatti_command_.K_command.resize(n_joints_, 2 * n_joints_);
-  ricatti_command_.K_command.setZero();
+  current_state_ = PvegChainedController::State(n_joints_);
+  ricatti_command_ = PvegChainedController::RicattiCommand(n_joints_);
 
   measuredX_.resize(2 * n_joints_);
   measuredX_.setZero();
@@ -181,6 +165,7 @@ PvegChainedController::on_export_reference_interfaces() {
         params_.joints[i] + "/" + hardware_interface::HW_IF_POSITION + "_0",
         &reference_interfaces_[n_joints_ + i]));
   }
+
   for (int i = 0; i < n_joints_; i++) {
     reference_interfaces.push_back(hardware_interface::CommandInterface(
         get_node()->get_name(),
@@ -284,12 +269,13 @@ bool PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
 
-    // interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
-    //                                       data_.ddq, interpolate_t_ * 1e-9);
+    interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
+                                          data_.ddq, interpolate_t_ * 1e-9);
 
-    interpolated_xs_ =
-        lin_interpolate_xs(ricatti_command_.x0_command,
-                           ricatti_command_.x1_command, interpolate_t_ * 1e-9);
+    // interpolated_xs_ =
+    //     lin_interpolate_xs(ricatti_command_.x0_command,
+    //                        ricatti_command_.x1_command, interpolate_t_ *
+    //                        1e-9);
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 
@@ -309,16 +295,10 @@ bool PvegChainedController::update() {
   return true;
 }
 
-PvegChainedController::ricatti_command
+PvegChainedController::RicattiCommand
 PvegChainedController::read_joints_commands() {
 
-  PvegChainedController::ricatti_command ric_cmd;
-
-  ric_cmd.u_command.resize(n_joints_);
-  ric_cmd.x0_command.resize(2 * n_joints_);
-  ric_cmd.xinter_command.resize(2 * n_joints_);
-  ric_cmd.x1_command.resize(2 * n_joints_);
-  ric_cmd.K_command.resize(n_joints_, 2 * n_joints_);
+  RicattiCommand ric_cmd(n_joints_);
 
   double command_u;
   double command_q0;
@@ -362,10 +342,8 @@ PvegChainedController::read_joints_commands() {
   return ric_cmd;
 }
 
-PvegChainedController::state PvegChainedController::read_state_from_hardware() {
-  PvegChainedController::state curr_state;
-  curr_state.position.resize(n_joints_);
-  curr_state.velocity.resize(n_joints_);
+PvegChainedController::State PvegChainedController::read_state_from_hardware() {
+  State curr_state(n_joints_);
   for (int i = 0; i < n_joints_; ++i) {
     curr_state.position[i] = state_interfaces_[i].get_value();
     curr_state.velocity[i] = state_interfaces_[n_joints_ + i].get_value();
@@ -374,7 +352,7 @@ PvegChainedController::state PvegChainedController::read_state_from_hardware() {
 }
 
 Eigen::VectorXd
-PvegChainedController::compute_ricatti_command(ricatti_command ric_cmd,
+PvegChainedController::compute_ricatti_command(RicattiCommand ric_cmd,
                                                Eigen::VectorXd x) {
   // compute the ricatti command cmd = u + K*(x_cmd - x_meas)
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.xinter_command - x);
@@ -405,7 +383,7 @@ Eigen::VectorXd PvegChainedController::lin_interpolate_xs(Eigen::VectorXd x0,
 
 Eigen::VectorXd
 PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
-                                             ricatti_command ric_cmd) {
+                                             RicattiCommand ric_cmd) {
   Eigen::VectorXd command(n_joints_);
 
   // if the the actuators can't be controlled in effort, we need to convert the

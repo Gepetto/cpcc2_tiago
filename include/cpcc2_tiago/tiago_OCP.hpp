@@ -26,6 +26,9 @@ using namespace Eigen;
 namespace tiago_OCP {
 class OCP {
 private:
+  boost::shared_ptr<StateMultibody> state_;
+  boost::shared_ptr<ActuationModelFull> actuation_;
+  boost::shared_ptr<ContactModelMultiple> contacts_;
   boost::shared_ptr<ShootingProblem> problem_;
 
   boost::shared_ptr<SolverFDDP> solver_;
@@ -34,12 +37,6 @@ private:
 
   std::vector<VectorXd> warm_xs_;
   std::vector<VectorXd> warm_us_;
-
-  boost::shared_ptr<StateMultibody> state_;
-  boost::shared_ptr<ActuationModelFull> actuation_;
-  boost::shared_ptr<ContactModelMultiple> contacts_;
-
-  boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model_;
 
   size_t horizon_length_;
   double time_step_;
