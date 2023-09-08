@@ -50,7 +50,7 @@ def plot_error(error_dir_path, file_names):
         plt.ylabel("Euclidian distance (mm)")
         for i, t in enumerate(targets):
             plt.annotate(
-                f"  n°{i}, {elapsed_times[i]:.2f} s",
+                f"  n°{i}, {elapsed_times[i]:.1f}s",
                 (str(targets[i]), 1e3 * error_history[i]),
             )
 
@@ -115,36 +115,47 @@ def main():
         jerks = calculate_jerk(ddqs, times)
 
         layout = [
-            ["croc_torque", "ric_torque", "real_torque"],
-            ["acceleration", "", "jerk"],
+            ["croc_torque", "ric_torque", "real_torques"],
+            ["acceleration", "jerk", "errors"],
         ]
 
         fig, axd = plt.subplot_mosaic(layout)
 
         axd["croc_torque"].plot(times, [croc_torques[i, :] for i in range(len(croc_torques))])
+        axd["croc_torque"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
         axd["croc_torque"].set_xlabel("Time (s)")
         axd["croc_torque"].set_ylabel("Torque (Nm)")
         axd["croc_torque"].set_title(f"Crocoddyl torque history {titles[i]}")
 
         axd["ric_torque"].plot(times, [ric_torques[i, :] for i in range(len(ric_torques))])
+        axd["ric_torque"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
         axd["ric_torque"].set_xlabel("Time (s)")
         axd["ric_torque"].set_ylabel("Torque (Nm)")
         axd["ric_torque"].set_title(f"Ricatti torque history {titles[i]}")
 
         axd["real_torques"].plot(times, [real_torques[i, :] for i in range(len(real_torques))])
+        axd["real_torques"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
         axd["real_torques"].set_xlabel("Time (s)")
         axd["real_torques"].set_ylabel("Torque (Nm)")
         axd["real_torques"].set_title(f"Real torque history {titles[i]}")
 
         axd["acceleration"].plot(times, [ddqs[i, :] for i in range(len(ddqs))])
+        axd["acceleration"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
         axd["acceleration"].set_xlabel("Time (s)")
         axd["acceleration"].set_ylabel("Acceleration (rad/s²)")
         axd["acceleration"].set_title(f"Acceleration history {titles[i]}")
 
         axd["jerk"].plot(times[:-1], [jerks[i, :] for i in range(len(jerks))])
+        axd["jerk"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
         axd["jerk"].set_xlabel("Time (s)")
         axd["jerk"].set_ylabel("Jerk (rad/s³)")
         axd["jerk"].set_title(f"Jerk history {titles[i]}")
+
+        axd["errors"].plot(times, [errors[i, :] for i in range(len(errors))])
+        axd["errors"].legend(["Motor 1", "Motor 2", "Motor 3", "Motor 4", "Motor 5"])
+        axd["errors"].set_xlabel("Time (s)")
+        axd["errors"].set_ylabel("Errors (m)")
+        axd["errors"].set_title(f"Errors history {titles[i]}")
 
         plt.tight_layout()
 

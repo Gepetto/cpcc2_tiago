@@ -10,6 +10,7 @@
 #include "controller_interface/controller_interface.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/tiago_OCP.hpp"
+#include "cpcc2_tiago/utils.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -68,33 +69,6 @@ public:
   controller_interface::CallbackReturn read_parameters();
 
 private:
-  struct State {
-    Eigen::VectorXd position;
-    Eigen::VectorXd velocity;
-
-    State() {}
-    State(int n_joints) {
-      position.resize(n_joints);
-      velocity.resize(n_joints);
-    }
-  };
-
-  // circular vector to store values over time and calculate the rolling mean
-  struct CircularVector {
-    Eigen::VectorXd vector;
-
-    CircularVector(int size) : vector(size) { vector.setZero(); }
-
-    void circular_append(double new_value) {
-      Eigen::VectorXd shifted_vector(vector.size());
-      for (int i = 0; i < vector.size() - 1; ++i) {
-        shifted_vector(i) = vector(i + 1);
-      }
-      shifted_vector(vector.size() - 1) = new_value;
-      vector = shifted_vector;
-    }
-  };
-
   std::shared_ptr<ParamListener> param_listener_;
   Params params_;
 

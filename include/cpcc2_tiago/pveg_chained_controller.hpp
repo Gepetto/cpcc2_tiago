@@ -9,6 +9,7 @@
 
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
+#include "cpcc2_tiago/utils.hpp"
 #include "cpcc2_tiago/visibility_control.h"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -92,47 +93,6 @@ protected:
   controller_interface::CallbackReturn read_parameters();
 
 private:
-  /// @brief struct to hold the different Ricatti commands
-  struct RicattiCommand {
-    Eigen::VectorXd u_command;
-    Eigen::VectorXd x0_command;
-    Eigen::VectorXd xinter_command;
-    Eigen::VectorXd x1_command;
-    Eigen::MatrixXd K_command;
-
-    RicattiCommand() {}
-
-    RicattiCommand(int n_joints) {
-      u_command.resize(n_joints);
-      x0_command.resize(2 * n_joints);
-      xinter_command.resize(2 * n_joints);
-      x1_command.resize(2 * n_joints);
-      K_command.resize(n_joints, 2 * n_joints);
-    }
-
-    bool operator==(const RicattiCommand &rhs) const {
-      return (u_command == rhs.u_command && x0_command == rhs.x0_command &&
-              x1_command == rhs.x1_command && K_command == rhs.K_command);
-    }
-
-    bool operator!=(const RicattiCommand &rhs) const {
-      return (u_command != rhs.u_command || x0_command != rhs.x0_command ||
-              x1_command != rhs.x1_command || K_command != rhs.K_command);
-    };
-  };
-
-  /// @brief struct to hold the current state of the robot
-  struct State {
-    Eigen::VectorXd position;
-    Eigen::VectorXd velocity;
-
-    State() {}
-    State(int n_joints) {
-      position.resize(n_joints);
-      velocity.resize(n_joints);
-    }
-  };
-
   /// @brief list of all command interfaces, in this case effort for each
   /// joint
   std::vector<std::string> command_interface_types_;

@@ -52,8 +52,8 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
   reference_interfaces_.resize(
       n_joints_ + 2 * n_joints_ + n_joints_ * 2 * n_joints_ + 2 * n_joints_, 0);
 
-  current_state_ = PvegChainedController::State(n_joints_);
-  ricatti_command_ = PvegChainedController::RicattiCommand(n_joints_);
+  current_state_ = State(n_joints_);
+  ricatti_command_ = RicattiCommand(n_joints_);
 
   measuredX_.resize(2 * n_joints_);
   measuredX_.setZero();
@@ -269,13 +269,12 @@ bool PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
 
-    interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
-                                          data_.ddq, interpolate_t_ * 1e-9);
+    // interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
+    //                                       data_.ddq, interpolate_t_ * 1e-9);
 
-    // interpolated_xs_ =
-    //     lin_interpolate_xs(ricatti_command_.x0_command,
-    //                        ricatti_command_.x1_command, interpolate_t_ *
-    //                        1e-9);
+    interpolated_xs_ =
+        lin_interpolate_xs(ricatti_command_.x0_command,
+                           ricatti_command_.x1_command, interpolate_t_ * 1e-9);
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 
@@ -295,8 +294,7 @@ bool PvegChainedController::update() {
   return true;
 }
 
-PvegChainedController::RicattiCommand
-PvegChainedController::read_joints_commands() {
+RicattiCommand PvegChainedController::read_joints_commands() {
 
   RicattiCommand ric_cmd(n_joints_);
 
@@ -342,7 +340,7 @@ PvegChainedController::read_joints_commands() {
   return ric_cmd;
 }
 
-PvegChainedController::State PvegChainedController::read_state_from_hardware() {
+State PvegChainedController::read_state_from_hardware() {
   State curr_state(n_joints_);
   for (int i = 0; i < n_joints_; ++i) {
     curr_state.position[i] = state_interfaces_[i].get_value();

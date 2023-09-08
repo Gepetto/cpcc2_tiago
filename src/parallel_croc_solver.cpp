@@ -169,7 +169,7 @@ int main() {
 
   VectorXd w_hand(6);
 
-  w_hand << VectorXd::Constant(3, 5), VectorXd::Constant(3, 0.0001);
+  w_hand << VectorXd::Constant(3, 10), VectorXd::Constant(3, 0.0001);
 
   VectorXd w_x(2 * model_.nv);
 

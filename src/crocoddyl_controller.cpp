@@ -407,9 +407,9 @@ void CrocoddylController::read_solver_results() {
   mutex_.unlock();
 }
 
-CrocoddylController::State CrocoddylController::read_state_from_hardware() {
+State CrocoddylController::read_state_from_hardware() {
 
-  CrocoddylController::State current_state(n_joints_);
+  State current_state(n_joints_);
 
   // read the state from the hardware
   // the state interfaces are as is :
