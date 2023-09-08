@@ -45,6 +45,12 @@ cpcc2_tiago:
     description: "OCP solver frequency",
   }
 
+  interpolation_type: {
+    type: string,
+    default_value: aba,
+    description: "Interpolation type, can be linear, aba or none",
+  }
+
   enable_file_logging: {
     type: bool,
     default_value: false,

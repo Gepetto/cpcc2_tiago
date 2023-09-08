@@ -31,11 +31,11 @@ def generate_launch_description():
     package_bin_dir = os.path.join(get_package_share_directory("cpcc2_tiago"), "bin")
     executable_path = os.path.join(package_bin_dir, "parallel_croc_solver")
 
-    threaded_solver_launch = ExecuteProcess(cmd=[executable_path], output="screen")
+    parallel_croc_solver_launch = ExecuteProcess(cmd=[executable_path], output="screen")
 
     ld = LaunchDescription()
 
-    ld.add_action(threaded_solver_launch)
+    ld.add_action(parallel_croc_solver_launch)
 
     ld.add_action(pveg_chained_controller_launch)
 

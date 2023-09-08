@@ -269,12 +269,17 @@ bool PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
 
-    // interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
-    //                                       data_.ddq, interpolate_t_ * 1e-9);
+    if (params_.interpolation_type == "aba") {
+      interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
+                                            data_.ddq, interpolate_t_ * 1e-9);
 
-    interpolated_xs_ =
-        lin_interpolate_xs(ricatti_command_.x0_command,
-                           ricatti_command_.x1_command, interpolate_t_ * 1e-9);
+    } else if (params_.interpolation_type == "linear") {
+      interpolated_xs_ = lin_interpolate_xs(ricatti_command_.x0_command,
+                                            ricatti_command_.x1_command,
+                                            interpolate_t_ * 1e-9);
+    } else {
+      interpolated_xs_ = ricatti_command_.x0_command;
+    }
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 

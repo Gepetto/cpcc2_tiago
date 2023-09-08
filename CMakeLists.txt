@@ -1,10 +1,6 @@
 cmake_minimum_required(VERSION 3.5.0)
 project(cpcc2_tiago)
 
-# Default to C11
-if(NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 11)
-endif()
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
@@ -121,7 +117,7 @@ target_include_directories(
 install(
   TARGETS
   parallel_croc_solver
-  DESTINATION share/${PROJECT_NAME}/bin
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 target_link_libraries(parallel_croc_solver crocoddyl_controller)
