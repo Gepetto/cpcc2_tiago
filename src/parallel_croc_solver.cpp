@@ -153,6 +153,7 @@ int main() {
   // set the OCP parameters
   OCP_horizon_length_ = params_.OCP_horizon_length;
   OCP_time_step_ = params_.OCP_time_step;
+  OCP_solver_frequency_ = params_.OCP_solver_frequency;
   OCP_solver_iterations_ = params_.OCP_solver_iterations;
 
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);

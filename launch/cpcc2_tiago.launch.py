@@ -16,7 +16,7 @@ from launch import LaunchDescription
 from launch.actions import TimerAction, ExecuteProcess
 from launch_pal.include_utils import include_launch_py_description
 import os
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix
 
 
 def generate_launch_description():
@@ -28,7 +28,7 @@ def generate_launch_description():
         "cpcc2_tiago", ["launch", "crocoddyl_controller.launch.py"]
     )
 
-    package_bin_dir = os.path.join(get_package_share_directory("cpcc2_tiago"), "bin")
+    package_bin_dir = os.path.join(get_package_prefix("cpcc2_tiago"), "lib", "cpcc2_tiago")
     executable_path = os.path.join(package_bin_dir, "parallel_croc_solver")
 
     parallel_croc_solver_launch = ExecuteProcess(cmd=[executable_path], output="screen")

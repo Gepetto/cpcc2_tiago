@@ -36,8 +36,6 @@ find_package(rosbag2_cpp REQUIRED)
 find_package(crocoddyl REQUIRED)
 
 
-include_directories(${crocoddyl_INCLUDE_DIRS})
-include_directories(${pinocchio_INCLUDE_DIRS})
 
 generate_parameter_library(
   cpcc2_tiago_parameters
