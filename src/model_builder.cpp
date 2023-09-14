@@ -44,8 +44,6 @@ Model build_model(std::string urdf_path, std::vector<std::string> joints) {
     }
   };
 
-  // Random configuration for the reduced model
-
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(full_model.nq);
 
   return buildReducedModel(full_model, jointsToLockIDs, q0);

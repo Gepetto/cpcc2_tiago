@@ -5,6 +5,7 @@
 
 namespace cpcc2_tiago {
 
+// this struct help to encapsulate the ricatti command
 struct RicattiCommand {
   Eigen::VectorXd u_command;
   Eigen::VectorXd x0_command;

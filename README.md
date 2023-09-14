@@ -83,3 +83,10 @@ Python scripts are given to evaluate the performance of Tiago, [performance_eval
 The performance plotter and full plotter nicely show the results of those study, the full plotter is used to compare performance between the 3 interpolation types.
 
 All these scripts can be launched with ros2 run cpcc2_tiago scripts.py args, see the scripts' docstring for the required arguments
+
+
+## TODO
+
+-Remove the need for absolute paths in the config file
+-Solve the problem with the warm start of the solver
+-Find the correct weights for Crocoddyl

@@ -23,13 +23,13 @@ cpcc2_tiago:
 
   OCP_horizon_length: {
     type: int,
-    default_value: 100,
+    default_value: 20,
     description: "Horizon of the problem",
   }
 
   OCP_time_step: {
     type: double,
-    default_value: 0.01,
+    default_value: 0.05,
     description: "OCP time step",
   }
 
@@ -41,13 +41,13 @@ cpcc2_tiago:
 
   OCP_solver_frequency: {
     type: double,
-    default_value: 100.0,
+    default_value: 20.0,
     description: "OCP solver frequency",
   }
 
   interpolation_type: {
     type: string,
-    default_value: aba,
+    default_value: none,
     description: "Interpolation type, can be linear, aba or none",
   }
 

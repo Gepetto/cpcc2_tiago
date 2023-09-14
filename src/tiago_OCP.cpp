@@ -174,6 +174,7 @@ void OCP::solve(VectorXd measured_x) {
   // recede the horizon and update the reference of the last node
   recede();
   updateRunModHandReference();
+  // Does it really help ?
   // updateRunModXRegReference(solver_->get_xs());
 
   warm_xs_ = solver_->get_xs();

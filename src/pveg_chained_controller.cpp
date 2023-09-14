@@ -268,7 +268,7 @@ bool PvegChainedController::update() {
     interpolate_t_ = (rclcpp::Clock(RCL_ROS_TIME).now() - prev_command_time_)
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
-
+    // interpolate
     if (params_.interpolation_type == "aba") {
       interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
                                             data_.ddq, interpolate_t_ * 1e-9);

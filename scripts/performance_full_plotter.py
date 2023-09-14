@@ -13,6 +13,7 @@ ros2 run cpcc2_tiago performance_full_plotter /path/to/log/dir/
 import re
 import csv
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import sys
 
@@ -43,15 +44,21 @@ def plot_error(error_dir_path, file_names):
                 error_history.append(error)
                 elapsed_times.append(elapsed_time)
 
-        plt.scatter([str(i) for i in targets], [e * 1e3 for e in error_history], c=colors[i])
+        plt.scatter(
+            [f"x:{i[0]}\n y:{i[1]}\n z:{i[2]}" for i in targets],
+            [e * 1e3 for e in error_history],
+            c=colors[i],
+        )
+        plt.yticks(np.arange(0, 1e3 * max(error_history) + 1, 0.5))
         plt.title("Error history to target, and elapsed time")
         plt.legend(titles)
         plt.xlabel("Target")
         plt.ylabel("Euclidian distance (mm)")
         for i, t in enumerate(targets):
             plt.annotate(
-                f"  n°{i}, {elapsed_times[i]:.1f}s",
-                (str(targets[i]), 1e3 * error_history[i]),
+                f"{elapsed_times[i]:.1f}s",
+                (i, 1e3 * error_history[i]),
+                (i - 0.1, 1e3 * error_history[i] + 0.2),
             )
 
 
@@ -98,9 +105,19 @@ def main():
         "full_history_none.csv",
     ]
 
+    matplotlib.rcParams.update({"font.size": 17})
+
     plot_error(sys.argv[1], txt_file_names)
 
     titles = ["ABA", "Linear", "None"]
+
+    jerk_layout = [["aba_jerk"], ["lin_jerk"], ["none_jerk"]]
+
+    fig_jerk, axd_jerk = plt.subplot_mosaic(jerk_layout)
+
+    pos_layout = [["x_pos"], ["y_pos"], ["z_pos"]]
+    axes = ["x", "y", "z"]
+    fig_pos, axd_pos = plt.subplot_mosaic(pos_layout)
 
     for i in range(3):
         (
@@ -113,6 +130,35 @@ def main():
             ddqs,
         ) = parse_log_file(sys.argv[1] + csv_file_names[i])
         jerks = calculate_jerk(ddqs, times)
+
+        # jerk plot
+        axd_jerk[jerk_layout[i][0]].plot(times[:-1], [jerks[i, :] for i in range(len(jerks))])
+        axd_jerk[jerk_layout[i][0]].ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+        fig_jerk.legend(
+            ["Act 1", "Act 2", "Act 3", "Act 4", "Act 5"],
+            loc=(0.25, 0),
+            ncol=5,
+        )
+        axd_jerk[jerk_layout[i][0]].set_xlabel("Time (s)")
+        axd_jerk[jerk_layout[i][0]].set_ylabel("Jerk (rad/s³)")
+        axd_jerk[jerk_layout[i][0]].set_title(f"Jerk history {titles[i]}")
+
+        # pos plot
+        axd_pos[pos_layout[0][0]].plot(times, (np.array(targets)[:, 0] - np.array(errors)[:, 0]))
+
+        axd_pos[pos_layout[0][0]].set_xlabel("Time (s)")
+        axd_pos[pos_layout[0][0]].set_ylabel("Position (m)")
+        axd_pos[pos_layout[0][0]].set_title(f"Position history and target, {axes[0]} axis")
+
+        axd_pos[pos_layout[1][0]].plot(times, (np.array(targets)[:, 1] - np.array(errors)[:, 1]))
+        axd_pos[pos_layout[1][0]].set_xlabel("Time (s)")
+        axd_pos[pos_layout[1][0]].set_ylabel("Position (m)")
+        axd_pos[pos_layout[1][0]].set_title(f"Position history and target, {axes[1]} axis")
+
+        axd_pos[pos_layout[2][0]].plot(times, (np.array(targets)[:, 2] - np.array(errors)[:, 2]))
+        axd_pos[pos_layout[2][0]].set_xlabel("Time (s)")
+        axd_pos[pos_layout[2][0]].set_ylabel("Position (m)")
+        axd_pos[pos_layout[2][0]].set_title(f"Position history and target, {axes[2]} axis")
 
         layout = [
             ["croc_torque", "ric_torque", "real_torques"],
@@ -159,6 +205,13 @@ def main():
 
         plt.tight_layout()
 
+    axd_pos[pos_layout[0][0]].plot(times, (np.array(targets)[:, 0]), "--", linewidth=3)
+
+    axd_pos[pos_layout[1][0]].plot(times, (np.array(targets)[:, 1]), "--", linewidth=3)
+
+    axd_pos[pos_layout[2][0]].plot(times, (np.array(targets)[:, 2]), "--", linewidth=3)
+
+    fig_pos.legend([*titles, "Target"], loc=(0.25, 0), ncol=4)
     plt.show()
 
 

@@ -92,11 +92,13 @@ private:
   // Alias a vector that uses the previous STL-like allocator
   typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
 
+  // shared memory
   boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       target_subscriber_;
 
+  // live logging publisher
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       end_effect_pos_error_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
@@ -110,7 +112,7 @@ private:
   /// @brief rosbag writer to log data
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
 
-  /// @brief rosbag messages to log data
+  /// rosbag messages to log data
   std_msgs::msg::Float64MultiArray log_msg_err_;
   std_msgs::msg::Float64MultiArray log_msg_pos_;
   std_msgs::msg::Float64MultiArray log_msg_eff_;
