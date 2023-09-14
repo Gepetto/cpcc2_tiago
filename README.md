@@ -27,15 +27,15 @@ By default the torso is disabled for performance evaluation, to enable it, add "
 
 After cloning the repo in the src folder of the workspace and cd to the root of the workspace
 
-```bash
-colcon build --cmake-args ' -DCMAKE_BUILD_TYPE=RELEASE'
+```sh
+colcon build --symlink-install --cmake-args ' -DCMAKE_BUILD_TYPE=RELEASE'
 ```
 
 This should start building the cpcc2_tiago package, it takes a few minutes.
 After the build is done you can
 
-```bash
-source path workspace_ws/install/setup.bash
+```sh
+. ~/cpcc2_tiago_ws/install/setup.bash
 ```
 
 ## Overview
