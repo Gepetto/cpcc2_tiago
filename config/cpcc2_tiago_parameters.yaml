@@ -2,7 +2,7 @@ cpcc2_tiago:
 
   urdf_path: {
     type: string,
-    default_value: /home/jgleyze/stage_laas_gepetto/cpcc2_tiago_ws/src/cpcc2_tiago/urdf/tiago.urdf,
+    default_value: /home/mmichot/cpcc2_tiago_ws/src/cpcc2_tiago/urdf/tiago.urdf,
     description: "Path to the URDF file",
   }
   joints: {
@@ -47,7 +47,7 @@ cpcc2_tiago:
 
   interpolation_type: {
     type: string,
-    default_value: none,
+    default_value: "aba",
     description: "Interpolation type, can be linear, aba or none",
   }
 

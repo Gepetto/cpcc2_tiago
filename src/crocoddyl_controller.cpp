@@ -1,4 +1,4 @@
-#include "cpcc2_tiago/crocoddyl_controller.hpp"
+#include <cpcc2_tiago/crocoddyl_controller.hpp>
 
 namespace cpcc2_tiago {
 
@@ -113,7 +113,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   // Build the model from the urdf
   model_ = model_builder::build_model(params_.urdf_path, joints_names_);
 
-  data_ = Data(model_);
+  data_ = pin::Data(model_);
 
   lh_id_ = model_.getFrameId("hand_tool_joint");
 
@@ -267,10 +267,8 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/,
-                            const rclcpp::Duration & /*period*/) {
-
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
   current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
   send_solver_current_t(current_t_.nanoseconds());
@@ -375,9 +373,9 @@ void CrocoddylController::update_target_from_subscriber(
   end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
   // write the target to the shared memory
   mutex_.lock();
-  target_shm_->assign(end_effector_target_.data(),
-                      end_effector_target_.data() +
-                          end_effector_target_.size());
+  target_shm_->assign(
+      end_effector_target_.data(),
+      end_effector_target_.data() + end_effector_target_.size());
   mutex_.unlock();
 }
 
@@ -408,7 +406,6 @@ void CrocoddylController::read_solver_results() {
 }
 
 State CrocoddylController::read_state_from_hardware() {
-
   State current_state(n_joints_);
 
   // read the state from the hardware
@@ -445,14 +442,14 @@ Eigen::VectorXd CrocoddylController::read_effort_from_hardware() {
   return effort;
 }
 
-void CrocoddylController::set_u_command(VectorXd command_u) {
+void CrocoddylController::set_u_command(Eigen::VectorXd command_u) {
   // send the effort command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command_u[i]);
   }
 }
 
-void CrocoddylController::set_x0_command(VectorXd command_x) {
+void CrocoddylController::set_x0_command(Eigen::VectorXd command_x) {
   // send the position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[n_joints_ + i].set_value(command_x[i]);
@@ -460,7 +457,7 @@ void CrocoddylController::set_x0_command(VectorXd command_x) {
   }
 }
 
-void CrocoddylController::set_K_command(MatrixXd command_K) {
+void CrocoddylController::set_K_command(Eigen::MatrixXd command_K) {
   // send the gain command to pveg controller
   for (int i = 0; i < n_joints_; ++i) {
     for (int j = 0; j < 2 * n_joints_; j++) {
@@ -470,7 +467,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-void CrocoddylController::set_x1_command(VectorXd command_x) {
+void CrocoddylController::set_x1_command(Eigen::VectorXd command_x) {
   // send the next position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ + i]
@@ -482,9 +479,9 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
-#include "pluginlib/class_list_macros.hpp"
+#include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(cpcc2_tiago::CrocoddylController,
                        controller_interface::ControllerInterface)

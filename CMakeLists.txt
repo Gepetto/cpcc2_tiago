@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5.0)
 project(cpcc2_tiago)
 
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(NOT WIN32)
@@ -34,8 +34,6 @@ find_package(controller_manager REQUIRED)
 find_package(generate_parameter_library REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(crocoddyl REQUIRED)
-
-
 
 generate_parameter_library(
   cpcc2_tiago_parameters
@@ -180,6 +178,5 @@ install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
 )
-
 
 ament_package()

@@ -1,4 +1,6 @@
-#include "cpcc2_tiago/parallel_croc_solver.hpp"
+#include <cpcc2_tiago/parallel_croc_solver.hpp>
+
+namespace parallel_croc_solver {
 
 void read_params() {
   n_joints_ = params_.joints.size();
@@ -26,8 +28,8 @@ void init_shared_memory() {
 
   // constuct all the shared memory segments
   x_meas_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("x_meas_shm") // object name
-      (alloc_inst);                                         //
+      crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // object name
+      (alloc_inst);                                          //
   us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
   xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
   xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
@@ -93,7 +95,7 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
   xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) { // to have the right order
+  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
     for (int j = 0; j < Ks_.cols(); j++) {
       Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
     }
@@ -101,7 +103,11 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   mutex_.unlock();
 }
 
+}  // namespace parallel_croc_solver
+
 int main() {
+  using namespace parallel_croc_solver;
+
   read_params();
   resize_vectors();
 
@@ -168,15 +174,16 @@ int main() {
                                               {"uReg_weight", 1e-4},
                                               {"xBounds_weight", 1}};
 
-  VectorXd w_hand(6);
+  Eigen::VectorXd w_hand(6);
 
-  w_hand << VectorXd::Constant(3, 5), VectorXd::Constant(3, 0.0001);
+  w_hand << Eigen::VectorXd::Constant(3, 5),
+      Eigen::VectorXd::Constant(3, 0.0001);
 
-  VectorXd w_x(2 * model_.nv);
+  Eigen::VectorXd w_x(2 * model_.nv);
 
-  w_x << VectorXd::Zero(3), VectorXd::Constant(3, 10.0),
-      VectorXd::Constant(model_.nv - 6, 0.01),
-      VectorXd::Constant(model_.nv, 10.0);
+  w_x << Eigen::VectorXd::Zero(3), Eigen::VectorXd::Constant(3, 10.0),
+      Eigen::VectorXd::Constant(model_.nv - 6, 0.01),
+      Eigen::VectorXd::Constant(model_.nv, 10.0);
 
   OCP_tiago_.setCostsWeights(costs_weights);
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
@@ -216,7 +223,6 @@ int main() {
 
   // start the solver loop
   while (true) {
-
     /* to synchronize the time with the controller we use the ROS time
      * for the solver, for an accurate time reading, the controllers have to
      * run at a higher frequency than the solver
@@ -232,7 +238,6 @@ int main() {
     target_ = read_controller_target();
 
     if (target_ != OCP_tiago_.get_target()) {
-
       OCP_tiago_.changeTarget(target_);
       std::cout << "\x1b[A";
       std::cout << "New target: " << target_.transpose() << "            "

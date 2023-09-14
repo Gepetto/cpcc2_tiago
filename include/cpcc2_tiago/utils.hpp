@@ -1,7 +1,6 @@
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#pragma once
 
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 
 namespace cpcc2_tiago {
 
@@ -62,6 +61,4 @@ struct CircularVector {
   }
 };
 
-} // namespace cpcc2_tiago
-
-#endif // UTILS_HPP
+}  // namespace cpcc2_tiago

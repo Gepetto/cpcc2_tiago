@@ -36,7 +36,8 @@ repos:
 
   # CPP hooks
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v14.0.3
+    rev: v14.0.6
     hooks:
       - id: clang-format
-        args: [--style=Google]
+        args: [--Werror, --dry-run]
+        files: \.(c|h|cc|hh|hxx|cpp|hpp)$
