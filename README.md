@@ -80,7 +80,7 @@ This scripts **loads** the controllers, hence the controller manager should have
 
 Python scripts are given to evaluate the performance of Tiago, [performance_evaluator.py](scripts/performance_evaluator.py), it sends Tiago 8 targets being the 8 vertices of a cube and logs many datas (see their docstring).
 
-The performance plotter and full plotter nicely show the results of those studies, the full plotter is used to compare performance between the 3 interpolation types.
+The performance plotter and full plotter nicely show the results of those studies, the full plotter is used to compare performances between the 3 interpolation types.
 
 All these scripts can be launched with ros2 run cpcc2_tiago scripts.py args, see the scripts' docstring for the required arguments
 
