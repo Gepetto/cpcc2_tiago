@@ -21,6 +21,7 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>realtime_tools</depend>
   <depend>std_msgs</depend>
+  <depend>launch_pal</depend>
   <depend>ros2_control</depend>
   <depend>ros2_controllers</depend>
   <depend>rosbag2</depend>

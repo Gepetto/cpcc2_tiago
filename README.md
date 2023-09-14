@@ -1,18 +1,18 @@
 # Chained controller for tiago, based on Crocoddyl
 
-This repo contain the code of a new ros2 controller : cpcc2 (Crocoddyl PVEG(Position Velocity Effort Gains) Chained Controller), added to it, its launch file and config for different actuators characteristics.
+This repo contains the code of a new ros2 controller : cpcc2 (Crocoddyl PVEG(Position Velocity Effort Gains) Chained Controller), added to it, its launch file and config for different actuators characteristics and solver parameters.
 
 ## Installation
 
 The controllers are based on ros2_control and make use of launch-pal for the launch files:
 
-```bash
-    cd your_ws
-    mkdir src
-    cd src
-    git clone repo/url
-    cd ..
-    rosdep install --from-paths src
+```sh
+cd ~/cpcc2_tiago_ws
+mkdir ~/cpcc2_tiago_ws/src
+cd ~/cpcc2_tiago_ws/src
+git clone https://github.com/Gepetto/cpcc2_tiago
+cd ~/cpcc2_tiago_ws
+rosdep install --from-paths src
 ```
 
 ## Package configuration
@@ -31,7 +31,7 @@ After cloning the repo in the src folder of the workspace and cd to the root of 
 colcon build --cmake-args ' -DCMAKE_BUILD_TYPE=RELEASE'
 ```
 
-This should start building the cpcc2_tiago package, it take a few minutes.
+This should start building the cpcc2_tiago package, it takes a few minutes.
 After the build is done you can
 
 ```bash
@@ -49,8 +49,8 @@ The controller is comprised of 2 smaller ones: one for the high level path plann
 ### Pveg Chained Controller
 
 The PvegChainedController is at the lowest level in the command chain : it is connected directly to the robot
-hardware through an hardware interface and sends effort command to the motors. For communicating it might be
-tempting to send it command through a topic or a service but that would be an unreliable solution for real time and
+hardware through a hardware interfaces and sends effort commands to the motors. For communicating it might be
+tempting to send command through a topic or a service but that would be an unreliable solution for real time and
 fast control of Tiago, we rather turn this controller into a chained one giving it new and fast communication tools :
 reference interfaces
 
@@ -70,14 +70,14 @@ This scripts **loads** the controllers, hence the controller manager should have
 
 ## Evaluate performance
 
-Python scripts are given to evaluate the performance of Tiago, [performance_evaluator.py](scripts/performance_evaluator.py), it sends Tiago 8 targets being the 8 vertices of a cube and logs many datas (see docstring).
+Python scripts are given to evaluate the performance of Tiago, [performance_evaluator.py](scripts/performance_evaluator.py), it sends Tiago 8 targets being the 8 vertices of a cube and logs many datas (see their docstring).
 
-The performance plotter and full plotter nicely show the results of those study, the full plotter is used to compare performance between the 3 interpolation types.
+The performance plotter and full plotter nicely show the results of those studies, the full plotter is used to compare performances between the 3 interpolation types.
 
 All these scripts can be launched with ros2 run cpcc2_tiago scripts.py args, see the scripts' docstring for the required arguments
 
 ## TODO
 
--Remove the need for absolute paths in the config file
--Solve the problem with the warm start of the solver
--Find the correct weights for Crocoddyl
+* Remove the need for absolute paths in the config file
+* Solve the problem with the warm start of the solver
+* Find the correct weights for Crocoddyl
