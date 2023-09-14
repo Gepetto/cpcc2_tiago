@@ -2,7 +2,7 @@
 
 namespace tiago_OCP {
 
-void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                          Eigen::VectorXd w_hand, double lh_cost_weight) {
   // Activation for the hand-placement cost
   boost::shared_ptr<croc::ActivationModelWeightedQuad> activ_hand =
@@ -20,7 +20,7 @@ void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("lh_goal", lh_cost, lh_cost_weight);
 }
 
-void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                      Eigen::VectorXd w_x, double xReg_weight) {
   boost::shared_ptr<croc::ActivationModelWeightedQuad> act_xreg =
       boost::make_shared<croc::ActivationModelWeightedQuad>(w_x.cwiseAbs2());
@@ -40,7 +40,7 @@ void OCP::defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("xReg", x_reg_cost, xReg_weight);
 }
 
-void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                      double uReg_weight) {
   boost::shared_ptr<croc::ResidualModelControl> res_mod_ctrl =
       boost::make_shared<croc::ResidualModelControl>(state_, actuation_nu_);
@@ -51,7 +51,7 @@ void OCP::defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("uReg", u_reg_cost, uReg_weight);
 }
 
-void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                         double xBounds_weight) {
   // Adding the state limits penalization
   Eigen::VectorXd x_lb(state_nq_ + state_nv_);

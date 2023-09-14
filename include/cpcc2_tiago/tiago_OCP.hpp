@@ -89,26 +89,26 @@ class OCP {
   /// @param cost cost object to add the hand task
   /// @param w_hand activation weights for the hand task
   /// @param lh_cost_weight cost weight for the hand task
-  void defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+  void defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                       Eigen::VectorXd w_hand, double lh_cost_weight);
 
   /// @brief Define the cost function for the state task
   /// @param cost cost object to add the state task
   /// @param w_x activation weights for the state task
   /// @param xReg_weight cost weight for the state task
-  void defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+  void defineXReg(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                   Eigen::VectorXd w_x, double xReg_weight);
 
   /// @brief Define the cost function for the control task
   /// @param cost cost object to add the control task
   /// @param uReg_weight cost weight for the control task
-  void defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+  void defineUReg(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                   double uReg_weight);
 
   /// @brief Define the cost function for the state bounds
   /// @param cost cost object to add the state bounds
   /// @param xBounds_weight cost weight for the state bounds
-  void defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
+  void defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                      double xBounds_weight);
 
   /// @brief build a running model for the OCP
