@@ -1,7 +1,7 @@
 # Chained controller for tiago, based on Crocoddyl
 
 
-This repo contain the code of a new ros2 controller : cpcc2 (Crocoddyl PVEG(Position Velocity Effort Gains) Chained Controller), added to it, its launch file and config for different actuators characteristics.
+This repo contains the code of a new ros2 controller : cpcc2 (Crocoddyl PVEG(Position Velocity Effort Gains) Chained Controller), added to it, its launch file and config for different actuators characteristics and solver parameters.
 
 ## Installation
 
@@ -32,7 +32,7 @@ After cloning the repo in the src folder of the workspace and cd to the root of 
 colcon build --cmake-args ' -DCMAKE_BUILD_TYPE=RELEASE'
 ```
 
-This should start building the cpcc2_tiago package, it take a few minutes.
+This should start building the cpcc2_tiago package, it takes a few minutes.
 After the build is done you can
 
 ```bash
@@ -42,7 +42,7 @@ source path workspace_ws/install/setup.bash
 ## Overview
 
 
-The controller is comprised of 2 smaller ones: one for the high level path planning : Crocoddyl, and the other for the torque to apply calculation : Pveg Chained, those two can be loaded from a single file : [cpcc2_tiago.launch.py](launch/cpcc2_tiago.launch.py)
+The controller is comprised of 2 smaller ones: one for the high level path planning : Crocoddyl, and the other for the torque to apply calculations : Pveg Chained, those two can be loaded from a single file : [cpcc2_tiago.launch.py](launch/cpcc2_tiago.launch.py)
 
 
 <img src="doc/media/cpcc2_tiago_full_chain.png" width=50% height=50%>
@@ -53,14 +53,14 @@ The controller is comprised of 2 smaller ones: one for the high level path plann
 #### Pveg Chained Controller
 
 The PvegChainedController is at the lowest level in the command chain : it is connected directly to the robot
-hardware through an hardware interface and sends effort command to the motors. For communicating it might be
-tempting to send it command through a topic or a service but that would be an unreliable solution for real time and
+hardware through a hardware interfaces and sends effort commands to the motors. For communicating it might be
+tempting to send command through a topic or a service but that would be an unreliable solution for real time and
 fast control of Tiago, we rather turn this controller into a chained one giving it new and fast communication tools :
 reference interfaces
 
 #### Crocoddyl Controller
 
-The CrocoddylController is a used to retrieve the solver results, it computes the command value and send them to the PvegChainedController through the virtual hardware interface. From its side those interfaces have nothing special but their prefix name.
+The CrocoddylController is a used to retrieve the solver results, it computes the command value and send them to the PvegChainedController through the virtual hardware interfaces. From its side those interfaces have nothing special but their prefix name.
 
 
 ## How to launch the controllers ?
@@ -78,15 +78,15 @@ This scripts **loads** the controllers, hence the controller manager should have
 
 ## Evaluate performance
 
-Python scripts are given to evaluate the performance of Tiago, [performance_evaluator.py](scripts/performance_evaluator.py), it sends Tiago 8 targets being the 8 vertices of a cube and logs many datas (see docstring).
+Python scripts are given to evaluate the performance of Tiago, [performance_evaluator.py](scripts/performance_evaluator.py), it sends Tiago 8 targets being the 8 vertices of a cube and logs many datas (see their docstring).
 
-The performance plotter and full plotter nicely show the results of those study, the full plotter is used to compare performance between the 3 interpolation types.
+The performance plotter and full plotter nicely show the results of those studies, the full plotter is used to compare performance between the 3 interpolation types.
 
 All these scripts can be launched with ros2 run cpcc2_tiago scripts.py args, see the scripts' docstring for the required arguments
 
 
 ## TODO
 
--Remove the need for absolute paths in the config file
--Solve the problem with the warm start of the solver
+-Remove the need for absolute paths in the config file<br/>
+-Solve the problem with the warm start of the solver<br/>
 -Find the correct weights for Crocoddyl
