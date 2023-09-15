@@ -17,24 +17,6 @@
 
 namespace cpcc2_tiago::parallel_croc_solver {
 
-// circular vector to store values over time and calculate the rolling mean
-struct CircularVector {
-  Eigen::VectorXd vector;
-
-  CircularVector(int size) : vector(size) {
-    vector.setZero();  // Initialiser le vecteur avec des zéros
-  }
-
-  void circular_append(double new_value) {
-    Eigen::VectorXd shifted_vector(vector.size());
-    for (int i = 0; i < vector.size() - 1; ++i) {
-      shifted_vector(i) = vector(i + 1);
-    }
-    shifted_vector(vector.size() - 1) = new_value;
-    vector = shifted_vector;
-  }
-};
-
 cpcc2_tiago::Params params_;  // load parmeters from yaml file
 
 boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,

@@ -1,5 +1,8 @@
 #include <cpcc2_tiago/pveg_chained_controller.hpp>
 
+// msg
+#include <std_msgs/msg/detail/string__struct.hpp>
+
 namespace cpcc2_tiago {
 
 void PvegChainedController::init_shared_memory() {
@@ -101,7 +104,35 @@ controller_interface::CallbackReturn PvegChainedController::on_init() {
 
   init_shared_memory();
 
-  model_ = model_builder::build_model(get_node(), params_.joints);
+  std_msgs::msg::String robot_description;
+  {
+    auto urdf_sub = get_node()->create_subscription<std_msgs::msg::String>(
+        "/robot_description", 1, [this](const std_msgs::msg::String &) {
+          RCLCPP_INFO(this->get_node()->get_logger(),
+                      "echo from /robot_description");
+        });
+
+    RCLCPP_INFO(get_node()->get_logger(),
+                "Trying to get urdf from /robot_description");
+
+    rclcpp::WaitSet urdf_wait_set;
+    urdf_wait_set.add_subscription(urdf_sub);
+    RCPPUTILS_SCOPE_EXIT(urdf_wait_set.remove_subscription(urdf_sub););
+    using namespace std::chrono_literals;
+    auto urdf_ret = urdf_wait_set.wait(10s);
+    rclcpp::MessageInfo info;
+    if (urdf_ret.kind() != rclcpp::WaitResultKind::Ready ||
+        !urdf_sub->take(robot_description, info)) {
+      RCLCPP_ERROR(get_node()->get_logger(),
+                   "Could not get urdf from /robot_description");
+      std::abort();
+    }
+
+    RCLCPP_INFO(get_node()->get_logger(),
+                "Successfully got urdf from /robot_description");
+  }
+
+  model_ = model_builder::build_model(robot_description.data, params_.joints);
 
   data_ = pin::Data(model_);
 

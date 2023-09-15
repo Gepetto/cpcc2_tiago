@@ -1,50 +1,12 @@
 #include <cpcc2_tiago/model_builder.hpp>
 
-// rclcpp
-#include <rclcpp/logging.hpp>
-#include <rclcpp/message_info.hpp>
-#include <rclcpp/wait_set.hpp>
-// msg
-#include <std_msgs/msg/string.hpp>
-
 namespace cpcc2_tiago::model_builder {
 
-pin::Model build_model(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+pin::Model build_model(const std::string &urdf,
                        std::vector<std::string> joints) {
   // Load the urdf model
-  if (!node) std::abort();
-
-  static std_msgs::msg::String::SharedPtr robot_description{nullptr};
-  if (!robot_description) {
-    robot_description = std::make_shared<std_msgs::msg::String>();
-    auto sub = node->create_subscription<std_msgs::msg::String>(
-        "/robot_description", 1, [&node](const std_msgs::msg::String &) {
-          RCLCPP_INFO(node->get_logger(), "echo from /robot_description");
-        });
-
-    RCLCPP_INFO(node->get_logger(),
-                "Trying to get urdf from /robot_description");
-
-    rclcpp::WaitSet wait_set;
-    wait_set.add_subscription(sub);
-    RCPPUTILS_SCOPE_EXIT(wait_set.remove_subscription(sub););
-    using namespace std::chrono_literals;
-    auto ret = wait_set.wait(10s);
-    rclcpp::MessageInfo info;
-    if (ret.kind() != rclcpp::WaitResultKind::Ready ||
-        !sub->take(*robot_description, info)) {
-      RCLCPP_ERROR(node->get_logger(),
-                   "Could not get urdf from /robot_description");
-      std::abort();
-    }
-
-    RCLCPP_INFO(node->get_logger(),
-                "Successfully got urdf from /robot_description");
-  } else
-    RCLCPP_INFO(node->get_logger(), "Used urdf in cache");
-
   pin::Model full_model;
-  pin::urdf::buildModelFromXML(robot_description->data, full_model);
+  pin::urdf::buildModelFromXML(urdf, full_model);
 
   std::vector<std::string> actuatedJointNames = {"universe"};
 

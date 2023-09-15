@@ -143,7 +143,8 @@ int main() {
   x_meas_ = read_controller_x();
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(nullptr, joints_names_);
+  // TODO: get urdf from shared memory
+  model_ = model_builder::build_model("", joints_names_);
 
   data_ = pin::Data(model_);
 
