@@ -1,6 +1,6 @@
 #include <cpcc2_tiago/parallel_croc_solver.hpp>
 
-namespace parallel_croc_solver {
+namespace cpcc2_tiago::parallel_croc_solver {
 
 void read_params() {
   n_joints_ = params_.joints.size();
@@ -73,6 +73,7 @@ double read_current_t() {
   mutex_.unlock();
   return current_t;
 }
+
 Eigen::VectorXd read_controller_x() {
   mutex_.lock();
   Eigen::VectorXd x =
@@ -103,10 +104,11 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   mutex_.unlock();
 }
 
-}  // namespace parallel_croc_solver
+}  // namespace cpcc2_tiago::parallel_croc_solver
 
 int main() {
-  using namespace parallel_croc_solver;
+  using namespace cpcc2_tiago;
+  using namespace cpcc2_tiago::parallel_croc_solver;
 
   read_params();
   resize_vectors();
@@ -141,9 +143,9 @@ int main() {
   x_meas_ = read_controller_x();
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(params_.urdf_path, joints_names_);
+  model_ = model_builder::build_model(nullptr, joints_names_);
 
-  data_ = Data(model_);
+  data_ = pin::Data(model_);
 
   std::cout << "Model built" << std::endl;
 

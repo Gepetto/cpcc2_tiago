@@ -7,11 +7,12 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/thread/thread_time.hpp>
+// pinocchio
+#include <pinocchio/algorithm/parallel/aba.hpp>
 // other
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
-#include <pinocchio/algorithm/parallel/aba.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 // cpcc2_tiago
@@ -22,8 +23,6 @@
 #include <cpcc2_tiago_parameters.hpp>
 
 namespace cpcc2_tiago {
-
-namespace pin = pinocchio;
 
 /// @brief Chained Controller class to send Reference Interfaces to Higher
 /// Level Controller

@@ -1,8 +1,15 @@
 #pragma once
 
+// Eigen
 #include <Eigen/Dense>
 
+namespace pinocchio {}
+namespace crocoddyl {}
+
 namespace cpcc2_tiago {
+
+namespace pin = pinocchio;
+namespace croc = crocoddyl;
 
 // this struct help to encapsulate the ricatti command
 struct RicattiCommand {

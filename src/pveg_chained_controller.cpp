@@ -101,7 +101,7 @@ controller_interface::CallbackReturn PvegChainedController::on_init() {
 
   init_shared_memory();
 
-  model_ = model_builder::build_model(params_.urdf_path, params_.joints);
+  model_ = model_builder::build_model(get_node(), params_.joints);
 
   data_ = pin::Data(model_);
 

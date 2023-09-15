@@ -111,7 +111,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   init_shared_memory();
 
   // Build the model from the urdf
-  model_ = model_builder::build_model(params_.urdf_path, joints_names_);
+  model_ = model_builder::build_model(get_node(), joints_names_);
 
   data_ = pin::Data(model_);
 

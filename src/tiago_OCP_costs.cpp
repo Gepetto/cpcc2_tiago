@@ -1,6 +1,6 @@
 #include <cpcc2_tiago/tiago_OCP.hpp>
 
-namespace tiago_OCP {
+namespace cpcc2_tiago::tiago_OCP {
 
 void OCP::defineHandTask(boost::shared_ptr<crocoddyl::CostModelSum> cost,
                          Eigen::VectorXd w_hand, double lh_cost_weight) {
@@ -76,4 +76,4 @@ void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> cost,
   cost.get()->addCost("xBounds", x_bounds, xBounds_weight);
 }
 
-}  // namespace tiago_OCP
+}  // namespace cpcc2_tiago::tiago_OCP

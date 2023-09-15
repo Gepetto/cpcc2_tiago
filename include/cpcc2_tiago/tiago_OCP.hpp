@@ -19,11 +19,10 @@
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/model.hpp>
 #include <pinocchio/spatial/fwd.hpp>
+// cpcc2_tiago
+#include <cpcc2_tiago/utils.hpp>
 
-namespace tiago_OCP {
-
-namespace pin = pinocchio;
-namespace croc = crocoddyl;
+namespace cpcc2_tiago::tiago_OCP {
 
 class OCP {
  private:
@@ -60,7 +59,8 @@ class OCP {
   pin::FrameIndex lh_id_;
 
  public:
-  OCP();
+  OCP() = default;
+
   OCP(const pin::Model model, const pin::Data data);
 
   /// @brief initialize the parameters for the OCP, state, actuation and
@@ -202,4 +202,4 @@ class OCP {
   croc::SolverFDDP get_solver() { return *solver_; }
 };
 
-};  // namespace tiago_OCP
+};  // namespace cpcc2_tiago::tiago_OCP

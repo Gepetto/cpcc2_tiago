@@ -1,8 +1,6 @@
 #include <cpcc2_tiago/tiago_OCP.hpp>
 
-namespace tiago_OCP {
-
-OCP::OCP() {}
+namespace cpcc2_tiago::tiago_OCP {
 
 OCP::OCP(const pin::Model model, const pin::Data data) {
   model_ = model;
@@ -229,4 +227,4 @@ boost::shared_ptr<crocoddyl::ActionDataAbstract> OCP::ada(
   return solver_->get_problem()->get_runningDatas()[node_id];
 }
 
-}  // namespace tiago_OCP
+}  // namespace cpcc2_tiago::tiago_OCP
