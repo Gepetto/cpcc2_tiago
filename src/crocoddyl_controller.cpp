@@ -1,7 +1,7 @@
 #include <cpcc2_tiago/crocoddyl_controller.hpp>
 
 // msg
-#include <std_msgs/msg/detail/string__struct.hpp>
+#include <std_msgs/msg/string.hpp>
 
 namespace cpcc2_tiago {
 
@@ -116,10 +116,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   std_msgs::msg::String robot_description;
   {
     auto urdf_sub = get_node()->create_subscription<std_msgs::msg::String>(
-        "/robot_description", 1, [this](const std_msgs::msg::String &) {
-          RCLCPP_INFO(this->get_node()->get_logger(),
-                      "echo from /robot_description");
-        });
+        "/robot_description", 1, [](const std_msgs::msg::String &) {});
 
     RCLCPP_INFO(get_node()->get_logger(),
                 "Trying to get urdf from /robot_description");
