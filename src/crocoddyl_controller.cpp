@@ -20,6 +20,8 @@ void CrocoddylController::init_shared_memory() {
   is_first_update_done_shm_ =
       crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
   current_t_shm_ = crocoddyl_shm_.find<double>("current_t_shm").first;
+  urdf_xml_sent_ = crocoddyl_shm_.find<bool>("urdf_xml_sent").first;
+  urdf_xml_ = crocoddyl_shm_.find<shared_string>("urdf_xml").first;
 }
 
 void CrocoddylController::declare_parameters() {
@@ -115,8 +117,10 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   std_msgs::msg::String robot_description;
   {
+    rclcpp::QoS qos(1);
+    qos.reliable().transient_local();
     auto urdf_sub = get_node()->create_subscription<std_msgs::msg::String>(
-        "/robot_description", 1, [](const std_msgs::msg::String &) {});
+        "/robot_description", qos, [](const std_msgs::msg::String &) {});
 
     RCLCPP_INFO(get_node()->get_logger(),
                 "Trying to get urdf from /robot_description");
@@ -137,6 +141,11 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     RCLCPP_INFO(get_node()->get_logger(),
                 "Successfully got urdf from /robot_description");
   }
+
+  mutex_.lock();
+  urdf_xml_->assign(robot_description.data.c_str());
+  *urdf_xml_sent_ = true;
+  mutex_.unlock();
 
   // Build the model from the urdf
   model_ = model_builder::build_model(robot_description.data, joints_names_);

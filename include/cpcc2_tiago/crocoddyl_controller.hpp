@@ -84,16 +84,6 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                           "crocoddyl_mutex"};
 
-  // Alias an STL compatible allocator of ints that allocates ints from the
-  // managed shared memory segment.  This allocator will allow to place
-  // containers in managed shared memory segments
-  typedef boost::interprocess::allocator<
-      double, boost::interprocess::managed_shared_memory::segment_manager>
-      shm_allocator;
-
-  // Alias a vector that uses the previous STL-like allocator
-  typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
-
   // shared memory
   boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
@@ -150,6 +140,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   // is the first crocoddyl controller update done : target set
   bool is_first_update_ = true;
   bool *is_first_update_done_shm_;
+
+  bool *urdf_xml_sent_;
+  shared_string *urdf_xml_;
 
   double update_freq_;
   CircularVector update_freq_vector_ = CircularVector(50);

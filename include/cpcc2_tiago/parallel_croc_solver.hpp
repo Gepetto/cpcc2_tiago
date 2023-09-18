@@ -17,70 +17,65 @@
 
 namespace cpcc2_tiago::parallel_croc_solver {
 
-cpcc2_tiago::Params params_;  // load parmeters from yaml file
+static cpcc2_tiago::Params params_;  // load parmeters from yaml file
 
-boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                        "crocoddyl_mutex"};
+static boost::interprocess::named_mutex mutex_{
+    boost::interprocess::open_or_create, "crocoddyl_mutex"};
 
-typedef boost::interprocess::allocator<
-    double, boost::interprocess::managed_shared_memory::segment_manager>
-    shm_allocator;
+static boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
-// Alias a vector that uses the previous STL-like allocator
-typedef boost::interprocess::vector<double, shm_allocator> shared_vector;
+static pin::Model model_;
+static pin::Data data_;
 
-boost::interprocess::managed_shared_memory crocoddyl_shm_;
+static pin::FrameIndex lh_id_;
 
-pin::Model model_;
-pin::Data data_;
+static tiago_OCP::OCP OCP_tiago_;
 
-pin::FrameIndex lh_id_;
+static int OCP_horizon_length_;
+static double OCP_time_step_;
+static int OCP_solver_iterations_;
+static double OCP_solver_frequency_;
 
-tiago_OCP::OCP OCP_tiago_;
+static std::vector<std::string> joints_names_;
+static int n_joints_;
 
-int OCP_horizon_length_;
-double OCP_time_step_;
-int OCP_solver_iterations_;
-double OCP_solver_frequency_;
+static Eigen::VectorXd x_meas_;
+static shared_vector *x_meas_shm_;
 
-std::vector<std::string> joints_names_;
-int n_joints_;
+static Eigen::VectorXd us_;
+static shared_vector *us_shm_;
 
-Eigen::VectorXd x_meas_;
-shared_vector *x_meas_shm_;
+static Eigen::VectorXd xs0_;
+static shared_vector *xs0_shm_;
+static Eigen::VectorXd xs1_;
+static shared_vector *xs1_shm_;
 
-Eigen::VectorXd us_;
-shared_vector *us_shm_;
+static Eigen::MatrixXd Ks_;
+static shared_vector *Ks_shm_;
 
-Eigen::VectorXd xs0_;
-shared_vector *xs0_shm_;
-Eigen::VectorXd xs1_;
-shared_vector *xs1_shm_;
+static Eigen::Vector3d target_;
+static shared_vector *target_shm_;
 
-Eigen::MatrixXd Ks_;
-shared_vector *Ks_shm_;
+static bool *solver_started_shm_;
+static bool *is_first_update_done_shm_;
+static bool is_first_update_done_ = false;
 
-Eigen::Vector3d target_;
-shared_vector *target_shm_;
+static bool *start_sending_cmd_shm_;
 
-bool *solver_started_shm_;
-bool *is_first_update_done_shm_;
-bool is_first_update_done_ = false;
+static double *current_t_shm_;
 
-bool *start_sending_cmd_shm_;
-bool start_sending_cmd_ = false;
+static bool *urdf_xml_sent_;
+static shared_string *urdf_xml_;
 
-double *current_t_shm_;
+static double current_t_;
+static double start_solving_time_;
+static double last_solving_time_;
+static double solving_time_;
+static double solver_freq_;
+static double diff_;
 
-double current_t_;
-double start_solving_time_;
-double last_solving_time_;
-double solving_time_;
-double solver_freq_;
-double diff_;
-
-CircularVector solving_time_vector_(20);
-CircularVector solver_freq_vector_(20);
+static CircularVector solving_time_vector_(20);
+static CircularVector solver_freq_vector_(20);
 
 /// @brief Read parameters
 void read_params();

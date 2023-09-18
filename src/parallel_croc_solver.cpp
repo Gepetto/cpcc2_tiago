@@ -24,7 +24,8 @@ void init_shared_memory() {
       boost::interprocess::create_only, "crocoddyl_shm", 65536);
 
   // Initialize shared memory STL-compatible allocator
-  const shm_allocator alloc_inst(crocoddyl_shm_.get_segment_manager());
+  const shared_double_allocator alloc_inst(
+      crocoddyl_shm_.get_segment_manager());
 
   // constuct all the shared memory segments
   x_meas_shm_ =
@@ -46,6 +47,9 @@ void init_shared_memory() {
       crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
 
   current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.0);
+  urdf_xml_sent_ = crocoddyl_shm_.construct<bool>("urdf_xml_sent")(false);
+  urdf_xml_ = crocoddyl_shm_.construct<shared_string>("urdf_xml")(
+      "", crocoddyl_shm_.get_segment_manager());
 
   // resize all the shared memory segments and fill them with zeros
   // to avoid reading uninitialized memory
@@ -137,14 +141,23 @@ int main() {
     is_first_update_done_ = *is_first_update_done_shm_;
     mutex_.unlock();
   }
-
   std::cout << "First update done" << std::endl;
 
   x_meas_ = read_controller_x();
 
   // Build the model from the urdf
-  // TODO: get urdf from shared memory
-  model_ = model_builder::build_model("", joints_names_);
+  std::cout << "Waiting for urdf xml" << std::endl;
+  bool urdf_xml_sent = false;
+  while (!urdf_xml_sent) {
+    mutex_.lock();
+    urdf_xml_sent = *urdf_xml_sent_;
+    mutex_.unlock();
+  }
+  std::cout << "Recieved urdf xml" << std::endl;
+  mutex_.lock();
+  std::string urdf_xml = urdf_xml_->data();
+  mutex_.unlock();
+  model_ = model_builder::build_model(urdf_xml, joints_names_);
 
   data_ = pin::Data(model_);
 

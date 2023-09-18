@@ -106,8 +106,10 @@ controller_interface::CallbackReturn PvegChainedController::on_init() {
 
   std_msgs::msg::String robot_description;
   {
+    rclcpp::QoS qos(1);
+    qos.reliable().transient_local();
     auto urdf_sub = get_node()->create_subscription<std_msgs::msg::String>(
-        "/robot_description", 1, [](const std_msgs::msg::String &) {});
+        "/robot_description", qos, [](const std_msgs::msg::String &) {});
 
     RCLCPP_INFO(get_node()->get_logger(),
                 "Trying to get urdf from /robot_description");

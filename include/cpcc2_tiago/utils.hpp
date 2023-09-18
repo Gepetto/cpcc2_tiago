@@ -2,6 +2,10 @@
 
 // Eigen
 #include <Eigen/Dense>
+// boost
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
 
 namespace pinocchio {}
 namespace crocoddyl {}
@@ -10,6 +14,16 @@ namespace cpcc2_tiago {
 
 namespace pin = pinocchio;
 namespace croc = crocoddyl;
+
+using shared_double_allocator = boost::interprocess::allocator<
+    double, boost::interprocess::managed_shared_memory::segment_manager>;
+using shared_char_allocator = boost::interprocess::allocator<
+    char, boost::interprocess::managed_shared_memory::segment_manager>;
+using shared_string =
+    boost::interprocess::basic_string<char, std::char_traits<char>,
+                                      shared_char_allocator>;
+using shared_vector =
+    boost::interprocess::vector<double, shared_double_allocator>;
 
 // this struct help to encapsulate the ricatti command
 struct RicattiCommand {
