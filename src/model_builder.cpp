@@ -3,7 +3,7 @@
 namespace cpcc2_tiago::model_builder {
 
 pin::Model build_model(const std::string &urdf,
-                       std::vector<std::string> joints) {
+                       const std::vector<std::string> &joints) {
   // Load the urdf model
   pin::Model full_model;
   pin::urdf::buildModelFromXML(urdf, full_model);
@@ -50,15 +50,15 @@ pin::Model build_model(const std::string &urdf,
 }
 
 void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
-                          pin::Model &model, pin::Data &data) {
+                          const pin::Model &model, pin::Data &data) {
   // x is the reduced posture, or contains the reduced posture in the first
   // elements
   pin::forwardKinematics(model, data, x.head(model.nq));
   pin::updateFramePlacements(model, data);
 }
 
-pin::SE3 get_end_effector_SE3(pin::Data &data,
-                              pin::FrameIndex &end_effector_id) {
+pin::SE3 get_end_effector_SE3(const pin::Data &data,
+                              pin::FrameIndex end_effector_id) {
   return data.oMf[end_effector_id];
 }
 

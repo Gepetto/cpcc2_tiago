@@ -16,19 +16,19 @@ namespace cpcc2_tiago::model_builder {
 /// @param urdf xml string representing the urdf
 /// @param joints Vector of the used joints names
 pin::Model build_model(const std::string &urdf,
-                       std::vector<std::string> joints);
+                       const std::vector<std::string> &joints);
 
 /// @brief update the reduced model
 /// @param x Reduced posture
 /// @param model Reduced model
 /// @param data Reduced data
 void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
-                          pin::Model &model, pin::Data &data);
+                          const pin::Model &model, pin::Data &data);
 
 /// @brief Get the end effector SE3 from the reduced model
 /// @param data Reduced data
 /// @param end_effector_id End effector frame index
-pin::SE3 get_end_effector_SE3(pin::Data &data,
-                              pin::FrameIndex &end_effector_id);
+pin::SE3 get_end_effector_SE3(const pin::Data &data,
+                              pin::FrameIndex end_effector_id);
 
 }  // namespace cpcc2_tiago::model_builder

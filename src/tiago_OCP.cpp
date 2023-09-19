@@ -2,9 +2,8 @@
 
 namespace cpcc2_tiago::tiago_OCP {
 
-OCP::OCP(const pin::Model model, const pin::Data data) {
-  model_ = model;
-  data_ = data;
+OCP::OCP(const pin::Model &model, const pin::Data &data)
+    : model_{model}, data_{data} {
   initOCPParms();
 }
 
@@ -162,7 +161,7 @@ void OCP::updateRunModHandReference() {
 }
 
 void OCP::updateRunModXRegReference(
-    std::vector<Eigen::VectorXd> const& x_Xreg) {
+    std::vector<Eigen::VectorXd> const &x_Xreg) {
   for (size_t i = 0; i < horizon_length_ - 1; i++) {
     boost::static_pointer_cast<croc::ResidualModelState>(
         costs(i)->get_costs().at("xReg")->cost->get_residual())

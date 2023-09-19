@@ -246,7 +246,7 @@ int main() {
     current_t_ = read_current_t();
 
     diff_ = current_t_ - last_solving_time_;
-    if (diff_ * 1e-9 < 1 / OCP_solver_frequency_) {
+    if (diff_ * 1e-9 < 1. / OCP_solver_frequency_) {
       continue;
     }
 

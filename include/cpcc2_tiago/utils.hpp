@@ -59,7 +59,7 @@ struct State {
   Eigen::VectorXd position;
   Eigen::VectorXd velocity;
 
-  State() {}
+  State() = default;
   State(int n_joints) {
     position.resize(n_joints);
     velocity.resize(n_joints);

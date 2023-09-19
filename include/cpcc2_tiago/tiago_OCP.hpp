@@ -61,7 +61,7 @@ class OCP {
  public:
   OCP() = default;
 
-  OCP(const pin::Model model, const pin::Data data);
+  OCP(const pin::Model &model, const pin::Data &data);
 
   /// @brief initialize the parameters for the OCP, state, actuation and
   /// contacts (empty)
@@ -125,7 +125,7 @@ class OCP {
   /// @brief update the reference for the last running model
   void updateRunModHandReference();
 
-  void updateRunModXRegReference(std::vector<Eigen::VectorXd> const &x_Xreg);
+  void updateRunModXRegReference(const std::vector<Eigen::VectorXd> &x_Xreg);
 
   /// @brief compute the balancing torques for the current state
   /// @param x0 current state
@@ -179,17 +179,17 @@ class OCP {
       const unsigned long node_id);
 
   /// @brief return target
-  Eigen::Vector3d get_target() { return (target_); };
+  Eigen::Vector3d get_target() { return target_; };
   /// @brief return the solver time step
-  double get_time_step() { return (time_step_); };
+  double get_time_step() { return time_step_; };
   /// @brief return the solver horizon length
-  int get_horizon_length() { return (horizon_length_); };
+  int get_horizon_length() { return horizon_length_; };
   /// @brief return the solver us
-  std::vector<Eigen::VectorXd> get_us() { return (solver_->get_us()); };
+  std::vector<Eigen::VectorXd> get_us() { return solver_->get_us(); };
   /// @brief return the solver xs
-  std::vector<Eigen::VectorXd> get_xs() { return (solver_->get_xs()); };
+  std::vector<Eigen::VectorXd> get_xs() { return solver_->get_xs(); };
   /// @brief return the solver gains
-  Eigen::MatrixXd get_gains() { return (solver_->get_K()[0]); };
+  Eigen::MatrixXd get_gains() { return solver_->get_K()[0]; };
   /// @brief return the balancing torques
   Eigen::VectorXd get_balancing_torques() { return balancing_torques_; };
   /// @brief return the solver state
