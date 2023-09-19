@@ -7,7 +7,7 @@ namespace cpcc2_tiago {
 
 void CrocoddylController::init_shared_memory() {
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::open_only, "crocoddyl_shm");
+      boost::interprocess::open_only, shared_storage_name.c_str());
 
   // Construct a shared memory
   // Find the vector using the c-string name
@@ -100,16 +100,11 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
 
   // test the access to the mutex
   while (true) {
-    if (mutex_.try_lock()) {
-      break;
-    }
-
+    if (mutex_.try_lock()) break;
     if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::milliseconds(10))) {
+                           boost::posix_time::millisec(10)))
       mutex_.unlock();
-    }
   }
-
   mutex_.unlock();
 
   // Initialize shared memory

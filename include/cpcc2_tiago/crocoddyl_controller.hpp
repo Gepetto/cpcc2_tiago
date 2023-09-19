@@ -82,7 +82,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   std::vector<std::string> joints_names_;
 
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          "crocoddyl_mutex"};
+                                          mutex_name.c_str()};
 
   // shared memory
   boost::interprocess::managed_shared_memory crocoddyl_shm_;

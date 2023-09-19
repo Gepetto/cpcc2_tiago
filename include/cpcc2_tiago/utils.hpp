@@ -15,6 +15,9 @@ namespace cpcc2_tiago {
 namespace pin = pinocchio;
 namespace croc = crocoddyl;
 
+static const std::string mutex_name = "cpcc2_tiago_mutex";
+static const std::string shared_storage_name = "cpcc2_tiago_shared_storage";
+
 using shared_double_allocator = boost::interprocess::allocator<
     double, boost::interprocess::managed_shared_memory::segment_manager>;
 using shared_char_allocator = boost::interprocess::allocator<

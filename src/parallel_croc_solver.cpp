@@ -1,15 +1,18 @@
 #include <cpcc2_tiago/parallel_croc_solver.hpp>
 
-namespace cpcc2_tiago::parallel_croc_solver {
+// STL
+#include <thread>
 
-void read_params() {
+namespace cpcc2_tiago {
+
+void ParallelCrocSolver::read_params() {
   n_joints_ = params_.joints.size();
   joints_names_.reserve(n_joints_);
   joints_names_ = params_.joints;
   OCP_solver_frequency_ = params_.OCP_solver_frequency;
 }
 
-void resize_vectors() {
+void ParallelCrocSolver::resize_vectors() {
   x_meas_.resize(2 * n_joints_);
   xs0_.resize(2 * n_joints_);
   xs1_.resize(2 * n_joints_);
@@ -17,11 +20,12 @@ void resize_vectors() {
   Ks_.resize(2 * n_joints_, n_joints_);
 }
 
-void init_shared_memory() {
-  boost::interprocess::shared_memory_object::remove("crocoddyl_shm");
+void ParallelCrocSolver::init_shared_memory() {
+  boost::interprocess::shared_memory_object::remove(
+      shared_storage_name.c_str());
 
   crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::create_only, "crocoddyl_shm", 65536);
+      boost::interprocess::create_only, shared_storage_name.c_str(), 65536);
 
   // Initialize shared memory STL-compatible allocator
   const shared_double_allocator alloc_inst(
@@ -71,14 +75,14 @@ void init_shared_memory() {
   target_shm_->resize(3);
 }
 
-double read_current_t() {
+double ParallelCrocSolver::read_current_t() {
   mutex_.lock();
   double current_t = *current_t_shm_;
   mutex_.unlock();
   return current_t;
 }
 
-Eigen::VectorXd read_controller_x() {
+Eigen::VectorXd ParallelCrocSolver::read_controller_x() {
   mutex_.lock();
   Eigen::VectorXd x =
       Eigen::Map<Eigen::VectorXd>(x_meas_shm_->data(), x_meas_shm_->size());
@@ -86,7 +90,7 @@ Eigen::VectorXd read_controller_x() {
   return x;
 }
 
-Eigen::Vector3d read_controller_target() {
+Eigen::Vector3d ParallelCrocSolver::read_controller_target() {
   mutex_.lock();
   Eigen::Vector3d target =
       Eigen::Map<Eigen::Vector3d>(target_shm_->data(), target_shm_->size());
@@ -94,8 +98,10 @@ Eigen::Vector3d read_controller_target() {
   return target;
 }
 
-void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
-                            Eigen::VectorXd xs1, Eigen::MatrixXd Ks) {
+void ParallelCrocSolver::send_controller_result(Eigen::VectorXd us,
+                                                Eigen::VectorXd xs0,
+                                                Eigen::VectorXd xs1,
+                                                Eigen::MatrixXd Ks) {
   mutex_.lock();
   us_shm_->assign(us.data(), us.data() + us.size());
   xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
@@ -108,26 +114,16 @@ void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
   mutex_.unlock();
 }
 
-}  // namespace cpcc2_tiago::parallel_croc_solver
-
-int main() {
-  using namespace cpcc2_tiago;
-  using namespace cpcc2_tiago::parallel_croc_solver;
-
+ParallelCrocSolver::ParallelCrocSolver() {
   read_params();
   resize_vectors();
 
   while (true) {
-    if (mutex_.try_lock()) {
-      break;
-    }
-
+    if (mutex_.try_lock()) break;
     if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::milliseconds(10))) {
+                           boost::posix_time::millisec(10)))
       mutex_.unlock();
-    }
   }
-
   mutex_.unlock();
 
   init_shared_memory();
@@ -236,54 +232,64 @@ int main() {
   mutex_.lock();
   *start_sending_cmd_shm_ = true;
   mutex_.unlock();
+}
+
+void ParallelCrocSolver::update() {
+  using namespace std::chrono_literals;
+
+  /* to synchronize the time with the controller we use the ROS time
+   * for the solver, for an accurate time reading, the controllers have to
+   * run at a higher frequency than the solver
+   */
+  current_t_ = read_current_t();
+
+  const double target = 1. / OCP_solver_frequency_;
+  const double diff_sec = (current_t_ - last_solving_time_) * 1e-9;
+  if (diff_sec < target)
+    std::this_thread::sleep_for(1s *
+                                static_cast<std::time_t>(target - diff_sec));
+
+  x_meas_ = read_controller_x();
+  target_ = read_controller_target();
+
+  if (target_ != OCP_tiago_.get_target()) {
+    OCP_tiago_.changeTarget(target_);
+    std::cout << "\x1b[A";
+    std::cout << "New target: " << target_.transpose() << "            "
+              << std::endl;
+  }
+
+  start_solving_time_ = read_current_t();
+
+  OCP_tiago_.solve(x_meas_);
+
+  us_ = OCP_tiago_.get_us()[0];
+  xs0_ = OCP_tiago_.get_xs()[0];
+  xs1_ = OCP_tiago_.get_xs()[1];
+  Ks_ = OCP_tiago_.get_gains();
+
+  send_controller_result(us_, xs0_, xs1_, Ks_);
+
+  solving_time_ = read_current_t() - start_solving_time_;
+  solver_freq_ = 1 / diff_sec;
+
+  solving_time_vector_.circular_append(solving_time_);
+  solver_freq_vector_.circular_append(solver_freq_);
+
+  std::cout << "Solv freq: " << std::setprecision(2)
+            << solver_freq_vector_.vector.mean() << " Hz, in "
+            << solving_time_vector_.vector.mean() * 10e-6 << " ms     "
+            << std::endl;
+  std::cout << "\x1b[A";
+
+  last_solving_time_ = current_t_;
+}
+
+}  // namespace cpcc2_tiago
+
+int main() {
+  cpcc2_tiago::ParallelCrocSolver pcs;
 
   // start the solver loop
-  while (true) {
-    /* to synchronize the time with the controller we use the ROS time
-     * for the solver, for an accurate time reading, the controllers have to
-     * run at a higher frequency than the solver
-     */
-    current_t_ = read_current_t();
-
-    diff_ = current_t_ - last_solving_time_;
-    if (diff_ * 1e-9 < 1. / OCP_solver_frequency_) {
-      continue;
-    }
-
-    x_meas_ = read_controller_x();
-    target_ = read_controller_target();
-
-    if (target_ != OCP_tiago_.get_target()) {
-      OCP_tiago_.changeTarget(target_);
-      std::cout << "\x1b[A";
-      std::cout << "New target: " << target_.transpose() << "            "
-                << std::endl;
-    }
-
-    start_solving_time_ = read_current_t();
-
-    OCP_tiago_.solve(x_meas_);
-
-    us_ = OCP_tiago_.get_us()[0];
-    xs0_ = OCP_tiago_.get_xs()[0];
-    xs1_ = OCP_tiago_.get_xs()[1];
-    Ks_ = OCP_tiago_.get_gains();
-
-    send_controller_result(us_, xs0_, xs1_, Ks_);
-
-    current_t_ = read_current_t();
-    solving_time_ = current_t_ - start_solving_time_;
-    solver_freq_ = 1 / (diff_ * 1e-9);
-
-    solving_time_vector_.circular_append(solving_time_);
-    solver_freq_vector_.circular_append(solver_freq_);
-
-    std::cout << "Solv freq: " << std::setprecision(2)
-              << solver_freq_vector_.vector.mean() << " Hz, in "
-              << solving_time_vector_.vector.mean() * 10e-6 << " ms     "
-              << std::endl;
-    std::cout << "\x1b[A";
-
-    last_solving_time_ = current_t_;
-  }
+  while (true) pcs.update();
 }

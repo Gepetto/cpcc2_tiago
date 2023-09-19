@@ -122,7 +122,7 @@ class PvegChainedController
 
   /// @brief shared mutex to prevent miswriting on used variable
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          "crocoddyl_mutex"};
+                                          mutex_name.c_str()};
 
   boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
