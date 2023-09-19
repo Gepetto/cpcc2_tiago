@@ -6,10 +6,11 @@
 namespace cpcc2_tiago {
 
 void ParallelCrocSolver::read_params() {
-  n_joints_ = params_.joints.size();
+  Params params;
+  n_joints_ = params.joints.size();
   joints_names_.reserve(n_joints_);
-  joints_names_ = params_.joints;
-  OCP_solver_frequency_ = params_.OCP_solver_frequency;
+  joints_names_ = params.joints;
+  OCP_solver_frequency_ = params.OCP_solver_frequency;
 }
 
 void ParallelCrocSolver::resize_vectors() {
@@ -32,15 +33,18 @@ void ParallelCrocSolver::init_shared_memory() {
       crocoddyl_shm_.get_segment_manager());
 
   // constuct all the shared memory segments
-  x_meas_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // object name
-      (alloc_inst);                                          //
-  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")(alloc_inst);
-  xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")(alloc_inst);
-  xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")(alloc_inst);
-  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")(alloc_inst);
-  target_shm_ =
-      crocoddyl_shm_.construct<shared_vector>("target_shm")(alloc_inst);
+  x_meas_shm_ = crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // x_meas
+                (x_meas_.size(), 0., alloc_inst);
+  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")  // us
+            (us_.size(), 0., alloc_inst);
+  xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")  // xs0
+             (xs0_.size(), 0., alloc_inst);
+  xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")  // xs1
+             (xs1_.size(), 0., alloc_inst);
+  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")  // Ks
+            (Ks_.size(), 0., alloc_inst);
+  target_shm_ = crocoddyl_shm_.construct<shared_vector>("target_shm")  // target
+                (3, alloc_inst);
 
   solver_started_shm_ =
       crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
@@ -50,29 +54,10 @@ void ParallelCrocSolver::init_shared_memory() {
   start_sending_cmd_shm_ =
       crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
 
-  current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.0);
+  current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.);
   urdf_xml_sent_ = crocoddyl_shm_.construct<bool>("urdf_xml_sent")(false);
-  urdf_xml_ = crocoddyl_shm_.construct<shared_string>("urdf_xml")(
-      "", crocoddyl_shm_.get_segment_manager());
-
-  // resize all the shared memory segments and fill them with zeros
-  // to avoid reading uninitialized memory
-  x_meas_shm_->resize(x_meas_.size());
-  std::fill(x_meas_shm_->begin(), x_meas_shm_->end(), 0.0);
-
-  us_shm_->resize(us_.size());
-  std::fill(us_shm_->begin(), us_shm_->end(), 0.0);
-
-  xs0_shm_->resize(xs0_.size());
-  std::fill(xs0_shm_->begin(), xs0_shm_->end(), 0.0);
-
-  xs1_shm_->resize(xs1_.size());
-  std::fill(xs1_shm_->begin(), xs1_shm_->end(), 0.0);
-
-  Ks_shm_->resize(Ks_.size());
-  std::fill(Ks_shm_->begin(), Ks_shm_->end(), 0.0);
-
-  target_shm_->resize(3);
+  urdf_xml_ = crocoddyl_shm_.construct<shared_string>("urdf_xml")  // urdf_xml
+              ("", crocoddyl_shm_.get_segment_manager());
 }
 
 double ParallelCrocSolver::read_current_t() {
@@ -168,11 +153,13 @@ ParallelCrocSolver::ParallelCrocSolver() {
   lh_id_ = model_.getFrameId("hand_tool_joint");
   OCP_tiago_.setLhId(lh_id_);
 
+  Params params;
+
   // set the OCP parameters
-  OCP_horizon_length_ = params_.OCP_horizon_length;
-  OCP_time_step_ = params_.OCP_time_step;
-  OCP_solver_frequency_ = params_.OCP_solver_frequency;
-  OCP_solver_iterations_ = params_.OCP_solver_iterations;
+  OCP_horizon_length_ = params.OCP_horizon_length;
+  OCP_time_step_ = params.OCP_time_step;
+  OCP_solver_frequency_ = params.OCP_solver_frequency;
+  OCP_solver_iterations_ = params.OCP_solver_iterations;
 
   OCP_tiago_.setHorizonLength(OCP_horizon_length_);
   OCP_tiago_.setTimeStep(OCP_time_step_);
@@ -241,10 +228,10 @@ void ParallelCrocSolver::update() {
    * for the solver, for an accurate time reading, the controllers have to
    * run at a higher frequency than the solver
    */
-  current_t_ = read_current_t();
+  const double current_t = read_current_t();
 
   const double target = 1. / OCP_solver_frequency_;
-  const double diff_sec = (current_t_ - last_solving_time_) * 1e-9;
+  const double diff_sec = (current_t - last_solving_time_) * 1e-9;
   if (diff_sec < target)
     std::this_thread::sleep_for(1s *
                                 static_cast<std::time_t>(target - diff_sec));
@@ -282,7 +269,7 @@ void ParallelCrocSolver::update() {
             << std::endl;
   std::cout << "\x1b[A";
 
-  last_solving_time_ = current_t_;
+  last_solving_time_ = current_t;
 }
 
 }  // namespace cpcc2_tiago

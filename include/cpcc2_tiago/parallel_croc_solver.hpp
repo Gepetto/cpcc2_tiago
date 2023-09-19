@@ -19,8 +19,6 @@ namespace cpcc2_tiago {
 
 class ParallelCrocSolver {
  private:
-  cpcc2_tiago::Params params_;  // load parmeters from yaml file
-
   pin::Model model_;
   pin::Data data_;
 
@@ -43,36 +41,35 @@ class ParallelCrocSolver {
   boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                           mutex_name.c_str()};
 
-  shared_vector *x_meas_shm_;
-  shared_vector *us_shm_;
-  shared_vector *xs0_shm_;
-  shared_vector *xs1_shm_;
-  shared_vector *Ks_shm_;
-  shared_vector *target_shm_;
+  shared_vector *x_meas_shm_ = nullptr;
+  shared_vector *us_shm_ = nullptr;
+  shared_vector *xs0_shm_ = nullptr;
+  shared_vector *xs1_shm_ = nullptr;
+  shared_vector *Ks_shm_ = nullptr;
+  shared_vector *target_shm_ = nullptr;
 
-  shared_string *urdf_xml_;
+  shared_string *urdf_xml_ = nullptr;
 
-  bool *solver_started_shm_;
-  bool *is_first_update_done_shm_;
-  bool *start_sending_cmd_shm_;
-  bool *urdf_xml_sent_;
+  bool *solver_started_shm_ = nullptr;
+  bool *is_first_update_done_shm_ = nullptr;
+  bool *start_sending_cmd_shm_ = nullptr;
+  bool *urdf_xml_sent_ = nullptr;
 
-  double *current_t_shm_;
+  double *current_t_shm_ = nullptr;
 
-  double current_t_;
-  double start_solving_time_;
-  double last_solving_time_;
-  double solving_time_;
-  double solver_freq_;
-  double diff_;
-  double OCP_time_step_;
-  double OCP_solver_frequency_;
+  double start_solving_time_ = 0;
+  double last_solving_time_ = 0;
+  double solving_time_ = 0;
+  double solver_freq_ = 0;
+  double diff_ = 0;
+  double OCP_time_step_ = 0;
+  double OCP_solver_frequency_ = 0;
 
-  pin::FrameIndex lh_id_;
+  pin::FrameIndex lh_id_ = -1;
 
-  int OCP_horizon_length_;
-  int OCP_solver_iterations_;
-  int n_joints_;
+  int OCP_horizon_length_ = 0;
+  int OCP_solver_iterations_ = 0;
+  int n_joints_ = 0;
 
   bool is_first_update_done_ = false;
 
