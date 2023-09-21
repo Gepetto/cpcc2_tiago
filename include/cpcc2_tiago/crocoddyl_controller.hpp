@@ -118,33 +118,31 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time last_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  rclcpp::Time current_t_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
   Eigen::VectorXd x_meas_;
-  shared_vector *x_meas_shm_;
+  shared_vector *x_meas_shm_ = nullptr;
 
   Eigen::VectorXd us_;
-  shared_vector *us_shm_;
+  shared_vector *us_shm_ = nullptr;
 
   Eigen::VectorXd xs0_;
-  shared_vector *xs0_shm_;
+  shared_vector *xs0_shm_ = nullptr;
   Eigen::VectorXd xs1_;
-  shared_vector *xs1_shm_;
+  shared_vector *xs1_shm_ = nullptr;
 
   Eigen::MatrixXd Ks_;
-  shared_vector *Ks_shm_;
+  shared_vector *Ks_shm_ = nullptr;
 
-  shared_vector *target_shm_;
-  double *current_t_shm_;
+  shared_vector *target_shm_ = nullptr;
+  double *current_t_shm_ = nullptr;
 
   // is the first crocoddyl controller update done : target set
   bool is_first_update_ = true;
-  bool *is_first_update_done_shm_;
+  bool *is_first_update_done_shm_ = nullptr;
 
-  bool *urdf_xml_sent_;
-  shared_string *urdf_xml_;
+  bool *urdf_xml_sent_ = nullptr;
+  shared_string *urdf_xml_ = nullptr;
 
-  double update_freq_;
   CircularVector<50> update_freq_vector_;
 
   /// @brief Current state at time t, overwritten next timestep
