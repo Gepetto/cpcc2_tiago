@@ -300,10 +300,9 @@ CrocoddylController::state_interface_configuration() const {
 }
 
 controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
-  current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
-
-  send_solver_current_t(current_t_.nanoseconds());
+    const rclcpp::Time &time, const rclcpp::Duration & /*period*/) {
+  // const rclcpp::Time time = rclcpp::Clock(RCL_ROS_TIME).now();
+  send_solver_current_t(time.nanoseconds());
 
   current_state_ = read_state_from_hardware();
 
@@ -360,11 +359,11 @@ controller_interface::return_type CrocoddylController::update(
   log_msg_x_meas_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
 
   if (params_.enable_file_logging) {
-    writer_->write(log_msg_err_, "/end_effect_pos_error", current_t_);
-    writer_->write(log_msg_pos_, "/end_effect_pos", current_t_);
-    writer_->write(log_msg_eff_, "/effort_command", current_t_);
-    writer_->write(log_msg_real_eff_, "/real_effort", current_t_);
-    writer_->write(log_msg_x_meas_, "/x_meas", current_t_);
+    writer_->write(log_msg_err_, "/end_effect_pos_error", time);
+    writer_->write(log_msg_pos_, "/end_effect_pos", time);
+    writer_->write(log_msg_eff_, "/effort_command", time);
+    writer_->write(log_msg_real_eff_, "/real_effort", time);
+    writer_->write(log_msg_x_meas_, "/x_meas", time);
   }
 
   if (params_.enable_live_logging) {
@@ -375,22 +374,15 @@ controller_interface::return_type CrocoddylController::update(
     x_meas_pub_->publish(log_msg_x_meas_);
   }
 
-  // compute the update frequency
-
-  update_freq_ = 1 / ((current_t_ - last_update_time_)
-                          .to_chrono<std::chrono::microseconds>()
-                          .count() *
-                      1e-6);
-
-  update_freq_vector_.circular_append(update_freq_);
-
   // print update frequency
+  std::cout << "Controllers update freq: " << update_freq_vector_.mean()
+            << " Hz           " << std::endl
+            << "\x1b[A";
 
-  std::cout << "Controllers update freq: " << update_freq_vector_.vector.mean()
-            << " Hz           " << std::endl;
-  std::cout << "\x1b[A";
-
-  last_update_time_ = current_t_;
+  // compute the update frequency
+  const double update_freq = 1e9 / (time - last_update_time_).nanoseconds();
+  update_freq_vector_.append(update_freq);
+  last_update_time_ = time;
 
   return controller_interface::return_type::OK;
 }

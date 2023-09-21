@@ -188,11 +188,11 @@ ParallelCrocSolver::ParallelCrocSolver() {
   OCP_tiago_.setCostsActivationWeights(w_hand, w_x);
 
   // read the first target, it should be the current position
-  target_ = read_controller_target();
+  const Eigen::Vector3d target = read_controller_target();
 
-  std::cout << "First target: " << target_.transpose() << std::endl;
+  std::cout << "First target: " << target.transpose() << std::endl;
 
-  OCP_tiago_.buildSolver(x_meas_, target_);
+  OCP_tiago_.buildSolver(x_meas_, target);
 
   std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
             << std::endl;
@@ -219,34 +219,19 @@ ParallelCrocSolver::ParallelCrocSolver() {
   mutex_.lock();
   *start_sending_cmd_shm_ = true;
   mutex_.unlock();
+
+  last_current_time_ = read_current_t();
 }
 
 void ParallelCrocSolver::update() {
-  using namespace std::chrono_literals;
-
-  /* to synchronize the time with the controller we use the ROS time
-   * for the solver, for an accurate time reading, the controllers have to
-   * run at a higher frequency than the solver
-   */
-  const double current_t = read_current_t();
-
-  const double target = 1. / OCP_solver_frequency_;
-  const double diff_sec = (current_t - last_solving_time_) * 1e-9;
-  if (diff_sec < target)
-    std::this_thread::sleep_for(1s *
-                                static_cast<std::time_t>(target - diff_sec));
-
   x_meas_ = read_controller_x();
-  target_ = read_controller_target();
+  const Eigen::Vector3d target = read_controller_target();
 
-  if (target_ != OCP_tiago_.get_target()) {
-    OCP_tiago_.changeTarget(target_);
-    std::cout << "\x1b[A";
-    std::cout << "New target: " << target_.transpose() << "            "
-              << std::endl;
+  if (target != OCP_tiago_.get_target()) {
+    OCP_tiago_.changeTarget(target);
+    std::cout << "\x1b[A"
+              << "New target: " << target.transpose() << "            \n";
   }
-
-  start_solving_time_ = read_current_t();
 
   OCP_tiago_.solve(x_meas_);
 
@@ -256,20 +241,30 @@ void ParallelCrocSolver::update() {
   Ks_ = OCP_tiago_.get_gains();
 
   send_controller_result(us_, xs0_, xs1_, Ks_);
+}
 
-  solving_time_ = read_current_t() - start_solving_time_;
-  solver_freq_ = 1 / diff_sec;
-
-  solving_time_vector_.circular_append(solving_time_);
-  solver_freq_vector_.circular_append(solver_freq_);
+void ParallelCrocSolver::wait() {
+  /* to synchronize the time with the controller we use the ROS time
+   * for the solver, for an accurate time reading, the controllers have to
+   * run at a higher frequency than the solver
+   */
+  using namespace std::chrono_literals;
 
   std::cout << "Solv freq: " << std::setprecision(2)
-            << solver_freq_vector_.vector.mean() << " Hz, in "
-            << solving_time_vector_.vector.mean() * 10e-6 << " ms     "
-            << std::endl;
-  std::cout << "\x1b[A";
+            << solver_freq_vector_.mean() << " Hz, in "
+            << solving_time_vector_.mean() * 1e-6 << " ms     " << std::endl
+            << "\x1b[A";
 
-  last_solving_time_ = current_t;
+  const double target_time = 1e9 / OCP_solver_frequency_;
+  while (read_current_t() - last_current_time_ < target_time)
+    std::this_thread::sleep_for(10'000ns);
+
+  const double current_time = read_current_t();
+  const double delta_time = current_time - last_current_time_;
+  last_current_time_ = current_time;
+
+  solving_time_vector_.append(delta_time);
+  solver_freq_vector_.append(1e9 / delta_time);
 }
 
 }  // namespace cpcc2_tiago
@@ -278,5 +273,8 @@ int main() {
   cpcc2_tiago::ParallelCrocSolver pcs;
 
   // start the solver loop
-  while (true) pcs.update();
+  while (true) {
+    pcs.update();
+    pcs.wait();
+  }
 }

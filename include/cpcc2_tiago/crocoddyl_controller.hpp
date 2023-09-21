@@ -145,7 +145,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   shared_string *urdf_xml_;
 
   double update_freq_;
-  CircularVector update_freq_vector_ = CircularVector(50);
+  CircularVector<50> update_freq_vector_;
 
   /// @brief Current state at time t, overwritten next timestep
   State current_state_;

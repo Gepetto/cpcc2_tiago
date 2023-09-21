@@ -31,10 +31,9 @@ class ParallelCrocSolver {
   Eigen::VectorXd xs0_;
   Eigen::VectorXd xs1_;
   Eigen::MatrixXd Ks_;
-  Eigen::Vector3d target_;
 
-  CircularVector solving_time_vector_{20};
-  CircularVector solver_freq_vector_{20};
+  CircularVector<20> solving_time_vector_;
+  CircularVector<20> solver_freq_vector_;
 
   boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
@@ -57,11 +56,7 @@ class ParallelCrocSolver {
 
   double *current_t_shm_ = nullptr;
 
-  double start_solving_time_ = 0;
-  double last_solving_time_ = 0;
-  double solving_time_ = 0;
-  double solver_freq_ = 0;
-  double diff_ = 0;
+  double last_current_time_ = 0;
   double OCP_time_step_ = 0;
   double OCP_solver_frequency_ = 0;
 
@@ -104,6 +99,7 @@ class ParallelCrocSolver {
   ParallelCrocSolver();
 
   void update();
+  void wait();
 };
 
 }  // namespace cpcc2_tiago
