@@ -1,5 +1,7 @@
 # Chained controller for tiago, based on Crocoddyl
 
+[![cpcc2_tiago build](https://github.com/VokunGahrotLaas/cpcc2_tiago/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/VokunGahrotLaas/cpcc2_tiago/actions/workflows/build.yml?query=branch%3Amaster)
+
 This repo contains the code of a new ros2 controller : cpcc2 (Crocoddyl PVEG(Position Velocity Effort Gains) Chained Controller), added to it, its launch file and config for different actuators characteristics and solver parameters.
 
 ## Installation
