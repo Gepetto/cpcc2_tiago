@@ -2,13 +2,13 @@ cpcc2_tiago:
 
   joints: {
     type: string_array,
-    default_value: [ arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint], #it's very important for them to be ordered !
+    default_value: [ arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint], #it's very important for them to be ordered !
     description: "Name of the arm joints to control",
   }
 
   pveg_joints_command_type: {
     type: string_array,
-    default_value: [ effort, effort, effort, effort, effort],
+    default_value: [ effort, effort, effort, effort, effort, effort],
     description: "Type of command to send to the joints",
   }
 
