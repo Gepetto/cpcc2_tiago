@@ -22,10 +22,10 @@ jobs:
         sudo apt update
         sudo apt install robotpkg-py3\*-crocoddyl
         {
-          echo 'PATH="/opt/openrobots/bin:$PATH"'
-          echo 'PKG_CONFIG_PATH="/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH"'
-          echo 'LD_LIBRARY_PATH="/opt/openrobots/lib:$LD_LIBRARY_PATH"'
-          echo 'PYTHONPATH="/opt/openrobots/lib/python3.10/site-packages:$PYTHONPATH"'
+          echo "PATH=/opt/openrobots/bin:$PATH"
+          echo "PKG_CONFIG_PATH=/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH"
+          echo "LD_LIBRARY_PATH=/opt/openrobots/lib:$LD_LIBRARY_PATH"
+          echo "PYTHONPATH=/opt/openrobots/lib/python3.10/site-packages:$PYTHONPATH"
         } >> "$GITHUB_ENV"
     - run: echo $PATH
     - uses: ros-tooling/action-ros-ci@v0.3
