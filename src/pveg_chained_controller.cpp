@@ -1,19 +1,6 @@
 #include <cpcc2_tiago/pveg_chained_controller.hpp>
 
-// msg
-#include <std_msgs/msg/string.hpp>
-
 namespace cpcc2_tiago {
-
-void PvegChainedController::init_shared_memory() {
-  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::open_only,
-      shared_storage_name.c_str());  // segment name
-
-  start_sending_cmd_shm_ =
-      crocoddyl_shm_.find<bool>("start_sending_cmd_shm").first;
-  // Find the vector using the c-string name
-}
 
 // Create a parameter listener to listen to published ros2 param
 void PvegChainedController::declare_parameters() {
@@ -41,16 +28,13 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
 
   n_joints_ = params_.joints.size();
 
-  for (int i = 0; i < n_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++)
     command_interface_types_.push_back(params_.joints[i] + "/" +
                                        params_.pveg_joints_command_type[i]);
-  }
 
-  for (auto state_inter_ : params_.state_interfaces_name) {
-    for (auto joint : params_.joints) {
+  for (const auto& state_inter_ : params_.state_interfaces_name)
+    for (const auto& joint : params_.joints)
       state_interface_types_.push_back(joint + "/" + state_inter_);
-    }
-  }
 
   reference_interfaces_.resize(
       n_joints_ + 2 * n_joints_ + n_joints_ * 2 * n_joints_ + 2 * n_joints_, 0);
@@ -77,58 +61,34 @@ controller_interface::CallbackReturn PvegChainedController::on_init() {
 
   try {
     declare_parameters();
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n",
             e.what());
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  auto ret = this->read_parameters();
+  auto ret = read_parameters();
   if (ret != controller_interface::CallbackReturn::SUCCESS) {
     return ret;
   }
 
-  // try to lock and unlock the mutex to check if it's available
-  while (true) {
-    if (mutex_.try_lock()) break;
-    if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::millisec(10)))
-      mutex_.unlock();
-  }
-  mutex_.unlock();
+  urdf_sub_ = get_node()->create_subscription<std_msgs::msg::String>(
+      "/robot_description", rclcpp::QoS{1}.reliable().transient_local(),
+      [this](const std_msgs::msg::String& msg) {
+        RCLCPP_INFO(get_node()->get_logger(),
+                    "Successfully recived urdf from /robot_description");
+        model_ = model_builder::build_model(msg.data, params_.joints);
+        data_ = pin::Data(model_);
+        this->urdf_sub_.reset();
+      });
 
-  init_shared_memory();
-
-  std_msgs::msg::String robot_description;
-  {
-    rclcpp::QoS qos(1);
-    qos.reliable().transient_local();
-    auto urdf_sub = get_node()->create_subscription<std_msgs::msg::String>(
-        "/robot_description", qos, [](const std_msgs::msg::String &) {});
-
-    RCLCPP_INFO(get_node()->get_logger(),
-                "Trying to get urdf from /robot_description");
-
-    rclcpp::WaitSet urdf_wait_set;
-    urdf_wait_set.add_subscription(urdf_sub);
-    RCPPUTILS_SCOPE_EXIT(urdf_wait_set.remove_subscription(urdf_sub););
-    using namespace std::chrono_literals;
-    auto urdf_ret = urdf_wait_set.wait(10s);
-    rclcpp::MessageInfo info;
-    if (urdf_ret.kind() != rclcpp::WaitResultKind::Ready ||
-        !urdf_sub->take(robot_description, info)) {
-      RCLCPP_ERROR(get_node()->get_logger(),
-                   "Could not get urdf from /robot_description");
-      std::abort();
-    }
-
-    RCLCPP_INFO(get_node()->get_logger(),
-                "Successfully got urdf from /robot_description");
-  }
-
-  model_ = model_builder::build_model(robot_description.data, params_.joints);
-
-  data_ = pin::Data(model_);
+  start_sub_ = get_node()->create_subscription<std_msgs::msg::Empty>(
+      "/cpcc2_tiago_start", rclcpp::QoS{1}.reliable().transient_local(),
+      [this](const std_msgs::msg::Empty&) {
+        RCLCPP_INFO(get_node()->get_logger(),
+                    "Successfully received start from /cpcc2_tiago_start");
+        this->start_sub_.reset();
+      });
 
   ricatti_command_pub_ =
       get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
@@ -244,7 +204,7 @@ PvegChainedController::update_reference_from_subscribers() {
 
 controller_interface::return_type
 PvegChainedController::update_and_write_commands(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
+    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   RCLCPP_INFO_ONCE(get_node()->get_logger(), "update_and_write_commands");
   return update() ? controller_interface::return_type::OK
                   : controller_interface::return_type::ERROR;
@@ -253,12 +213,7 @@ PvegChainedController::update_and_write_commands(
 bool PvegChainedController::update() {
   // first we read the current state of the robot
 
-  if (start_sending_cmd_ == false) {
-    mutex_.lock();
-    start_sending_cmd_ = *start_sending_cmd_shm_;
-    mutex_.unlock();
-    return true;
-  }
+  if (start_sub_ || urdf_sub_) return true;
 
   current_state_ = read_state_from_hardware();
 
@@ -294,17 +249,15 @@ bool PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
     // interpolate
-    if (params_.interpolation_type == "aba") {
+    if (params_.interpolation_type == "aba")
       interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
                                             data_.ddq, interpolate_t_ * 1e-9);
-
-    } else if (params_.interpolation_type == "linear") {
+    else if (params_.interpolation_type == "linear")
       interpolated_xs_ = lin_interpolate_xs(ricatti_command_.x0_command,
                                             ricatti_command_.x1_command,
                                             interpolate_t_ * 1e-9);
-    } else {
+    else
       interpolated_xs_ = ricatti_command_.x0_command;
-    }
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 

@@ -1,14 +1,12 @@
 #pragma once
 
-// boost
-#include <boost/interprocess/containers/vector.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/mapped_region.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/interprocess_mutex.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/thread/thread_time.hpp>
+// STL
+#include <atomic>
+#include <string>
+#include <thread>
+#include <vector>
 // cpcc2_tiago
+#include <cpcc2_tiago/locked.hpp>
 #include <cpcc2_tiago/model_builder.hpp>
 #include <cpcc2_tiago/tiago_OCP.hpp>
 #include <cpcc2_tiago/utils.hpp>
@@ -22,39 +20,23 @@ class ParallelCrocSolver {
   pin::Model model_;
   pin::Data data_;
 
+  std::thread thread_;
+  std::atomic<bool> running_ = true;
+  std::atomic<double> current_time_ = 0.;
+
+  Locked<Eigen::Vector3d> target_;
+  Locked<Eigen::VectorXd> x_meas_;
+  Locked<Eigen::VectorXd> us_;
+  Locked<Eigen::VectorXd> xs0_;
+  Locked<Eigen::VectorXd> xs1_;
+  Locked<Eigen::MatrixXd> Ks_;
+
   tiago_OCP::OCP OCP_tiago_;
 
   std::vector<std::string> joints_names_;
 
-  Eigen::VectorXd x_meas_;
-  Eigen::VectorXd us_;
-  Eigen::VectorXd xs0_;
-  Eigen::VectorXd xs1_;
-  Eigen::MatrixXd Ks_;
-
   CircularVector<20> solving_time_vector_;
   CircularVector<20> solver_freq_vector_;
-
-  boost::interprocess::managed_shared_memory crocoddyl_shm_;
-
-  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          mutex_name.c_str()};
-
-  shared_vector *x_meas_shm_ = nullptr;
-  shared_vector *us_shm_ = nullptr;
-  shared_vector *xs0_shm_ = nullptr;
-  shared_vector *xs1_shm_ = nullptr;
-  shared_vector *Ks_shm_ = nullptr;
-  shared_vector *target_shm_ = nullptr;
-
-  shared_string *urdf_xml_ = nullptr;
-
-  bool *solver_started_shm_ = nullptr;
-  bool *is_first_update_done_shm_ = nullptr;
-  bool *start_sending_cmd_shm_ = nullptr;
-  bool *urdf_xml_sent_ = nullptr;
-
-  double *current_t_shm_ = nullptr;
 
   double last_current_time_ = 0;
   double OCP_time_step_ = 0;
@@ -66,8 +48,6 @@ class ParallelCrocSolver {
   int OCP_solver_iterations_ = 0;
   int n_joints_ = 0;
 
-  bool is_first_update_done_ = false;
-
   /// @brief Read parameters
   void read_params();
 
@@ -76,12 +56,6 @@ class ParallelCrocSolver {
 
   /// @brief Create the shared memory
   void init_shared_memory();
-
-  /// @brief get the ROS time in order to be synchronized
-  /// @return the ROS time
-  double get_ROS_time();
-
-  double read_current_t();
 
   /// @brief Read x from the shared memory
   /// @return the state as a VectorXd
@@ -92,14 +66,36 @@ class ParallelCrocSolver {
   Eigen::Vector3d read_controller_target();
 
   /// @brief Send the result of the controller to the shared memory
-  void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
-                              Eigen::VectorXd xs1, Eigen::MatrixXd Ks);
-
- public:
-  ParallelCrocSolver();
+  void send_controller_result(const Eigen::VectorXd& us,
+                              const Eigen::VectorXd& xs0,
+                              const Eigen::VectorXd& xs1,
+                              const Eigen::MatrixXd& Ks);
 
   void update();
   void wait();
+
+ public:
+  ParallelCrocSolver() = default;
+  ~ParallelCrocSolver();
+
+  void init_model(const std::string& urdf_xml);
+  void start_thread();
+
+  using results_type =
+      std::tuple<Unlocked<Eigen::VectorXd>, Unlocked<Eigen::VectorXd>,
+                 Unlocked<Eigen::VectorXd>, Unlocked<Eigen::MatrixXd>>;
+
+  inline void set_current_time(double time) { current_time_ = time; }
+  inline void set_target(const Eigen::Vector3d& target) { target_ = target; }
+  inline void set_x_meas(const Eigen::VectorXd& x_meas) { x_meas_ = x_meas; }
+  inline results_type get_results() {
+    auto us = us_.unlock();
+    auto xs0 = xs0_.unlock();
+    auto xs1 = xs1_.unlock();
+    auto Ks = Ks_.unlock();
+    return results_type{std::move(us), std::move(xs0), std::move(xs1),
+                        std::move(Ks)};
+  }
 };
 
 }  // namespace cpcc2_tiago

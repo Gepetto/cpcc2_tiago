@@ -14,140 +14,46 @@ void ParallelCrocSolver::read_params() {
 }
 
 void ParallelCrocSolver::resize_vectors() {
-  x_meas_.resize(2 * n_joints_);
-  xs0_.resize(2 * n_joints_);
-  xs1_.resize(2 * n_joints_);
-  us_.resize(n_joints_);
-  Ks_.resize(2 * n_joints_, n_joints_);
+  x_meas_.unlock()->resize(2 * n_joints_);
+  us_.unlock()->resize(n_joints_);
+  xs0_.unlock()->resize(2 * n_joints_);
+  xs1_.unlock()->resize(2 * n_joints_);
+  Ks_.unlock()->resize(2 * n_joints_, n_joints_);
 }
 
-void ParallelCrocSolver::init_shared_memory() {
-  boost::interprocess::shared_memory_object::remove(
-      shared_storage_name.c_str());
+Eigen::VectorXd ParallelCrocSolver::read_controller_x() { return x_meas_; }
 
-  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::create_only, shared_storage_name.c_str(), 65536);
+Eigen::Vector3d ParallelCrocSolver::read_controller_target() { return target_; }
 
-  // Initialize shared memory STL-compatible allocator
-  const shared_double_allocator alloc_inst(
-      crocoddyl_shm_.get_segment_manager());
-
-  // constuct all the shared memory segments
-  x_meas_shm_ = crocoddyl_shm_.construct<shared_vector>("x_meas_shm")  // x_meas
-                (x_meas_.size(), 0., alloc_inst);
-  us_shm_ = crocoddyl_shm_.construct<shared_vector>("us_shm")  // us
-            (us_.size(), 0., alloc_inst);
-  xs0_shm_ = crocoddyl_shm_.construct<shared_vector>("xs0_shm")  // xs0
-             (xs0_.size(), 0., alloc_inst);
-  xs1_shm_ = crocoddyl_shm_.construct<shared_vector>("xs1_shm")  // xs1
-             (xs1_.size(), 0., alloc_inst);
-  Ks_shm_ = crocoddyl_shm_.construct<shared_vector>("Ks_shm")  // Ks
-            (Ks_.size(), 0., alloc_inst);
-  target_shm_ = crocoddyl_shm_.construct<shared_vector>("target_shm")  // target
-                (3, alloc_inst);
-
-  solver_started_shm_ =
-      crocoddyl_shm_.construct<bool>("solver_started_shm")(false);
-  is_first_update_done_shm_ =
-      crocoddyl_shm_.construct<bool>("is_first_update_done_shm")(false);
-
-  start_sending_cmd_shm_ =
-      crocoddyl_shm_.construct<bool>("start_sending_cmd_shm")(false);
-
-  current_t_shm_ = crocoddyl_shm_.construct<double>("current_t_shm")(0.);
-  urdf_xml_sent_ = crocoddyl_shm_.construct<bool>("urdf_xml_sent")(false);
-  urdf_xml_ = crocoddyl_shm_.construct<shared_string>("urdf_xml")  // urdf_xml
-              ("", crocoddyl_shm_.get_segment_manager());
+void ParallelCrocSolver::send_controller_result(const Eigen::VectorXd &us,
+                                                const Eigen::VectorXd &xs0,
+                                                const Eigen::VectorXd &xs1,
+                                                const Eigen::MatrixXd &Ks) {
+  auto [uus, uxs0, uxs1, uKs] = get_results();
+  uus = us;
+  uxs0 = xs0;
+  uxs1 = xs1;
+  uKs = Ks;
 }
 
-double ParallelCrocSolver::read_current_t() {
-  mutex_.lock();
-  double current_t = *current_t_shm_;
-  mutex_.unlock();
-  return current_t;
+ParallelCrocSolver::~ParallelCrocSolver() {
+  running_ = false;
+  if (thread_.joinable()) thread_.join();
 }
 
-Eigen::VectorXd ParallelCrocSolver::read_controller_x() {
-  mutex_.lock();
-  Eigen::VectorXd x =
-      Eigen::Map<Eigen::VectorXd>(x_meas_shm_->data(), x_meas_shm_->size());
-  mutex_.unlock();
-  return x;
-}
-
-Eigen::Vector3d ParallelCrocSolver::read_controller_target() {
-  mutex_.lock();
-  Eigen::Vector3d target =
-      Eigen::Map<Eigen::Vector3d>(target_shm_->data(), target_shm_->size());
-  mutex_.unlock();
-  return target;
-}
-
-void ParallelCrocSolver::send_controller_result(Eigen::VectorXd us,
-                                                Eigen::VectorXd xs0,
-                                                Eigen::VectorXd xs1,
-                                                Eigen::MatrixXd Ks) {
-  mutex_.lock();
-  us_shm_->assign(us.data(), us.data() + us.size());
-  xs0_shm_->assign(xs0.data(), xs0.data() + xs0.size());
-  xs1_shm_->assign(xs1.data(), xs1.data() + xs1.size());
-  for (int i = 0; i < Ks_.rows(); i++) {  // to have the right order
-    for (int j = 0; j < Ks_.cols(); j++) {
-      Ks_shm_->at(i * Ks_.cols() + j) = Ks(i, j);
-    }
-  }
-  mutex_.unlock();
-}
-
-ParallelCrocSolver::ParallelCrocSolver() {
+void ParallelCrocSolver::init_model(const std::string &urdf_xml) {
   read_params();
   resize_vectors();
-
-  while (true) {
-    if (mutex_.try_lock()) break;
-    if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::millisec(10)))
-      mutex_.unlock();
-  }
-  mutex_.unlock();
-
-  init_shared_memory();
 
   //  don't start solving until the first crocoddyl controller update is
   //  done and the first target is received
 
-  std::cout << "Waiting for first update" << std::endl;
-  while (is_first_update_done_ == false) {
-    mutex_.lock();
-    is_first_update_done_ = *is_first_update_done_shm_;
-    mutex_.unlock();
-  }
-  std::cout << "First update done" << std::endl;
-
-  x_meas_ = read_controller_x();
-
-  // Build the model from the urdf
-  std::cout << "Waiting for urdf xml" << std::endl;
-  bool urdf_xml_sent = false;
-  while (!urdf_xml_sent) {
-    mutex_.lock();
-    urdf_xml_sent = *urdf_xml_sent_;
-    mutex_.unlock();
-  }
-  std::cout << "Recieved urdf xml" << std::endl;
-  mutex_.lock();
-  std::string urdf_xml = urdf_xml_->data();
-  mutex_.unlock();
   model_ = model_builder::build_model(urdf_xml, joints_names_);
-
   data_ = pin::Data(model_);
-
   std::cout << "Model built" << std::endl;
 
   // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
-
-  OCP_tiago_.setX0(x_meas_);
 
   // set the hand frame id
   lh_id_ = model_.getFrameId("hand_tool_joint");
@@ -166,6 +72,12 @@ ParallelCrocSolver::ParallelCrocSolver() {
   OCP_tiago_.setSolverIterations(OCP_solver_iterations_);
 
   std::cout << "OCP settings set." << std::endl;
+}
+
+void ParallelCrocSolver::start_thread() {
+  x_meas_ = read_controller_x();
+
+  OCP_tiago_.setX0(x_meas_);
 
   // set the OCP costs weights and activation weights
   std::map<std::string, double> costs_weights{{"lh_goal_weight", 1e2},
@@ -200,27 +112,26 @@ ParallelCrocSolver::ParallelCrocSolver() {
   std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
 
   OCP_tiago_.solveFirst(x_meas_);
-  mutex_.lock();
-  *solver_started_shm_ = true;
-  mutex_.unlock();
 
   OCP_tiago_.printCosts();
 
-  us_ = OCP_tiago_.get_us()[0];
-  xs0_ = OCP_tiago_.get_xs()[0];
-  xs1_ = OCP_tiago_.get_xs()[1];
-  Ks_ = OCP_tiago_.get_gains();
+  auto us = OCP_tiago_.get_us()[0];
+  auto xs0 = OCP_tiago_.get_xs()[0];
+  auto xs1 = OCP_tiago_.get_xs()[1];
+  auto Ks = OCP_tiago_.get_gains();
 
-  send_controller_result(us_, xs0_, xs1_, Ks_);
+  send_controller_result(us, xs0, xs1, Ks);
 
   std::cout << "First solve done" << std::endl;
 
-  // after the first solve, start sending the commands to the robot
-  mutex_.lock();
-  *start_sending_cmd_shm_ = true;
-  mutex_.unlock();
+  last_current_time_ = current_time_;
 
-  last_current_time_ = read_current_t();
+  thread_ = std::thread{[this]() {
+    while (this->running_) {
+      this->update();
+      this->wait();
+    }
+  }};
 }
 
 void ParallelCrocSolver::update() {
@@ -235,12 +146,12 @@ void ParallelCrocSolver::update() {
 
   OCP_tiago_.solve(x_meas_);
 
-  us_ = OCP_tiago_.get_us()[0];
-  xs0_ = OCP_tiago_.get_xs()[0];
-  xs1_ = OCP_tiago_.get_xs()[1];
-  Ks_ = OCP_tiago_.get_gains();
+  auto us = OCP_tiago_.get_us()[0];
+  auto xs0 = OCP_tiago_.get_xs()[0];
+  auto xs1 = OCP_tiago_.get_xs()[1];
+  auto Ks = OCP_tiago_.get_gains();
 
-  send_controller_result(us_, xs0_, xs1_, Ks_);
+  send_controller_result(us, xs0, xs1, Ks);
 }
 
 void ParallelCrocSolver::wait() {
@@ -256,10 +167,10 @@ void ParallelCrocSolver::wait() {
             << "\x1b[A";
 
   const double target_time = 1e9 / OCP_solver_frequency_;
-  while (read_current_t() - last_current_time_ < target_time)
-    std::this_thread::sleep_for(10'000ns);
+  while (current_time_ - last_current_time_ < target_time && running_)
+    std::this_thread::sleep_for(100'000ns);
 
-  const double current_time = read_current_t();
+  const double current_time = current_time_;
   const double delta_time = current_time - last_current_time_;
   last_current_time_ = current_time;
 
@@ -268,13 +179,3 @@ void ParallelCrocSolver::wait() {
 }
 
 }  // namespace cpcc2_tiago
-
-int main() {
-  cpcc2_tiago::ParallelCrocSolver pcs;
-
-  // start the solver loop
-  while (true) {
-    pcs.update();
-    pcs.wait();
-  }
-}

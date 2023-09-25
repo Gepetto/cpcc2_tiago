@@ -1,22 +1,22 @@
 #pragma once
 
-// boost
-#include <boost/interprocess/containers/vector.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/thread/thread_time.hpp>
 // pinocchio
 #include <pinocchio/algorithm/parallel/aba.hpp>
-// other
+// interfaces
 #include <controller_interface/controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
+// pluginlib
 #include <pluginlib/class_list_macros.hpp>
+// rosbag2_cpp
 #include <rosbag2_cpp/writer.hpp>
+// msgs
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
 // cpcc2_tiago
 #include <cpcc2_tiago/model_builder.hpp>
+#include <cpcc2_tiago/parallel_croc_solver.hpp>
 #include <cpcc2_tiago/tiago_OCP.hpp>
 #include <cpcc2_tiago/utils.hpp>
 #include <cpcc2_tiago/visibility_control.hpp>
@@ -46,7 +46,7 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::return_type update(
-      const rclcpp::Time &time, const rclcpp::Duration &period) override;
+      const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
   /**
    * Derived controller have to declare parameters in this method.
@@ -71,6 +71,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   controller_interface::CallbackReturn read_parameters();
 
  private:
+  ParallelCrocSolver pcs_;
+
   std::shared_ptr<ParamListener> param_listener_;
   Params params_;
 
@@ -80,12 +82,6 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   int n_joints_;
   std::vector<std::string> joints_names_;
-
-  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          mutex_name.c_str()};
-
-  // shared memory
-  boost::interprocess::managed_shared_memory crocoddyl_shm_;
 
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       target_subscriber_;
@@ -100,6 +96,9 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       real_effort_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr x_meas_pub_;
+  rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr start_pub_;
+
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr urdf_sub_;
 
   /// @brief rosbag writer to log data
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
@@ -120,28 +119,13 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   rclcpp::Time last_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
   Eigen::VectorXd x_meas_;
-  shared_vector *x_meas_shm_ = nullptr;
-
   Eigen::VectorXd us_;
-  shared_vector *us_shm_ = nullptr;
-
   Eigen::VectorXd xs0_;
-  shared_vector *xs0_shm_ = nullptr;
   Eigen::VectorXd xs1_;
-  shared_vector *xs1_shm_ = nullptr;
-
   Eigen::MatrixXd Ks_;
-  shared_vector *Ks_shm_ = nullptr;
-
-  shared_vector *target_shm_ = nullptr;
-  double *current_t_shm_ = nullptr;
 
   // is the first crocoddyl controller update done : target set
   bool is_first_update_ = true;
-  bool *is_first_update_done_shm_ = nullptr;
-
-  bool *urdf_xml_sent_ = nullptr;
-  shared_string *urdf_xml_ = nullptr;
 
   CircularVector<50> update_freq_vector_;
 
@@ -154,18 +138,6 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Eigen::Vector3d end_effector_pos_;
 
   Eigen::Vector3d pos_error_;
-
-  /// @brief Initialize the shared memory, find the vector and tie them to
-  /// variables
-  void init_shared_memory();
-
-  /// @brief Send the solver the current time
-  /// @param current_t the current time
-  void send_solver_current_t(double current_t);
-
-  /// @brief Send the solver the current state
-  /// @param x the current state
-  void send_solver_x(Eigen::VectorXd x);
 
   /// @brief Read the solver results from the shared memory
   void read_solver_results();
@@ -184,19 +156,19 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   /// @brief Set u command to the reference interfaces
   /// @param command_u the command to be set
-  void set_u_command(Eigen::VectorXd command_u);
+  void set_u_command(const Eigen::VectorXd& command_u);
 
   /// @brief Set x0 command to the reference interfaces
   /// @param command_x the command to be set
-  void set_x0_command(Eigen::VectorXd command_x);
+  void set_x0_command(const Eigen::VectorXd& command_x);
 
   /// @brief Set x1 command to the reference interfaces
   /// @param command_x the command to be set
-  void set_x1_command(Eigen::VectorXd command_x);
+  void set_x1_command(const Eigen::VectorXd& command_x);
 
   /// @brief Set K command to the reference interfaces
   /// @param command_K the command to be set
-  void set_K_command(Eigen::MatrixXd comman_K);
+  void set_K_command(const Eigen::MatrixXd& comman_K);
 };
 
 }  // namespace cpcc2_tiago

@@ -5,11 +5,13 @@ cpcc2_tiago:
     default_value: [ arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint], #it's very important for them to be ordered !
     description: "Name of the arm joints to control",
   }
+
   pveg_joints_command_type: {
     type: string_array,
     default_value: [ effort, effort, effort, effort, effort],
     description: "Type of command to send to the joints",
   }
+
   state_interfaces_name: {
     type: string_array,
     default_value : [position, velocity, effort],
@@ -63,5 +65,3 @@ cpcc2_tiago:
     default_value: true,
     description: "Enable data stream to topic for plotjuggler",
   }
-
-

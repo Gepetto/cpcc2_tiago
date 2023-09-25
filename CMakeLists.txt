@@ -64,7 +64,7 @@ add_library(
   src/tiago_OCP.cpp
   src/tiago_OCP_costs.cpp
   src/model_builder.cpp
-
+  src/parallel_croc_solver.cpp
 )
 
 target_link_libraries(crocoddyl_controller crocoddyl::crocoddyl)
@@ -76,7 +76,6 @@ target_include_directories(
 )
 ament_target_dependencies(
   crocoddyl_controller
-
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -99,24 +98,6 @@ ament_export_include_directories(
 ament_export_libraries(
   crocoddyl_controller
 )
-
-## parallel_croc_solver
-
-add_executable(parallel_croc_solver src/parallel_croc_solver.cpp)
-
-target_include_directories(
-  parallel_croc_solver
-  PRIVATE
-  include
-)
-
-install(
-  TARGETS
-  parallel_croc_solver
-  DESTINATION lib/${PROJECT_NAME}
-)
-
-target_link_libraries(parallel_croc_solver crocoddyl_controller)
 
 ## pveg_chained_controller
 add_library(

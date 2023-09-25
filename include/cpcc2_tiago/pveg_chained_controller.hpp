@@ -1,20 +1,18 @@
 #ifndef PVEG_CHAINED_CONTROLLER_HPP
 #define PVEG_CHAINED_CONTROLLER_HPP
 
-// boost
-#include <boost/interprocess/containers/vector.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/thread/thread_time.hpp>
 // pinocchio
 #include <pinocchio/algorithm/parallel/aba.hpp>
-// other
+// interfaces
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
+// puginlib
 #include <pluginlib/class_list_macros.hpp>
+// msgs
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
 // cpcc2_tiago
 #include <cpcc2_tiago/model_builder.hpp>
 #include <cpcc2_tiago/utils.hpp>
@@ -120,14 +118,8 @@ class PvegChainedController
 
   std_msgs::msg::Float64MultiArray ddq_msg_;
 
-  /// @brief shared mutex to prevent miswriting on used variable
-  boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
-                                          mutex_name.c_str()};
-
-  boost::interprocess::managed_shared_memory crocoddyl_shm_;
-
-  bool *start_sending_cmd_shm_;
-  bool start_sending_cmd_ = false;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr urdf_sub_;
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr start_sub_;
 
   rclcpp::Time start_update_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Time prev_command_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
@@ -163,10 +155,6 @@ class PvegChainedController
 
   /// @brief state to store the current state of the robot
   State current_state_;
-
-  /// @brief Initialize the shared memory, find the vector and tie them to
-  /// variables
-  void init_shared_memory();
 
   /// @brief Read the command from the reference interfaces
   /// @return return the commands
