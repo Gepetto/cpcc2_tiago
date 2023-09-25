@@ -13,6 +13,7 @@ jobs:
     - uses: ros-tooling/setup-ros@v0.6
       with:
         required-ros-distributions: humble
+    - run: sudo pip install crocoddyl
     - uses: ros-tooling/action-ros-ci@v0.3
       with:
         package-name: cpcc2_tiago
