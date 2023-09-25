@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v3
     - uses: ros-tooling/setup-ros@v0.6
       with:
         required-ros-distributions: humble
@@ -20,11 +21,13 @@ jobs:
         curl http://robotpkg.openrobots.org/packages/debian/robotpkg.key | sudo apt-key add -
         sudo apt update
         sudo apt install robotpkg-py3\*-crocoddyl
-        echo 'export PATH=/opt/openrobots/bin:$PATH' >> ~/.bashrc
-        echo 'export PKG_CONFIG_PATH=/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH' >> ~/.bashrc
-        echo 'export LD_LIBRARY_PATH=/opt/openrobots/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
-        echo 'export PYTHONPATH=/opt/openrobots/lib/python3.10/site-packages:$PYTHONPATH' >> ~/.bashrc
+        echo 'export PATH="/opt/openrobots/bin:$PATH"' >> ~/.bashrc
+        echo 'export PKG_CONFIG_PATH="/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="/opt/openrobots/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export PYTHONPATH="/opt/openrobots/lib/python3.10/site-packages:$PYTHONPATH"' >> ~/.bashrc
+        echo 'export crocoddyl_DIR="/opt/openrobots/lib/cmake/crocoddyl"' >> ~/.bashrc
         . ~/.bashrc
+    - run: echo $PATH
     - uses: ros-tooling/action-ros-ci@v0.3
       with:
         package-name: cpcc2_tiago
