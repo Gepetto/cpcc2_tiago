@@ -20,7 +20,7 @@ jobs:
         EOF
         curl http://robotpkg.openrobots.org/packages/debian/robotpkg.key | sudo apt-key add -
         sudo apt update
-        sudo apt install robotpkg-py3\*-crocoddyl
+        sudo apt install robotpkg-py3\*-crocoddyl coinor-libipopt-dev
         {
           echo "PATH=/opt/openrobots/bin:$PATH"
           echo "PKG_CONFIG_PATH=/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH"
