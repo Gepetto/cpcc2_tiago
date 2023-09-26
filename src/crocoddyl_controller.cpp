@@ -242,10 +242,10 @@ CrocoddylController::state_interface_configuration() const {
 }
 
 controller_interface::return_type CrocoddylController::update(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
+    const rclcpp::Time& time, const rclcpp::Duration& /*period*/) {
   if (urdf_sub_) return controller_interface::return_type::OK;
 
-  const rclcpp::Time time = rclcpp::Clock(RCL_ROS_TIME).now();
+  // const rclcpp::Time time = rclcpp::Clock(RCL_ROS_TIME).now();
   pcs_.set_current_time(time.nanoseconds());
 
   current_state_ = read_state_from_hardware();
