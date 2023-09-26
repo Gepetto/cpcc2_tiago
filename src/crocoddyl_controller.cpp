@@ -35,6 +35,8 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 
   joints_names_ = params_.joints;
 
+  end_effector_ = params_.end_effector;
+
   x_meas_.resize(2 * n_joints_);
   xs0_.resize(2 * n_joints_);
   xs1_.resize(2 * n_joints_);
@@ -86,7 +88,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
                     "Successfully received urdf from /robot_description");
         model_ = model_builder::build_model(msg.data, joints_names_);
         data_ = pin::Data(model_);
-        lh_id_ = model_.getFrameId("hand_tool_joint");
+        lh_id_ = model_.getFrameId(this->end_effector_);
         pcs_.init_model(msg.data);
         this->urdf_sub_.reset();
       });

@@ -18,6 +18,12 @@ cpcc2_tiago:
     description: "Name of the state interface",
   }
 
+  end_effector: {
+    type: string,
+    default_value: "hand_tool_joint",
+    description: "Name of the end effector joint",
+  }
+
   OCP_horizon_length: {
     type: int,
     default_value: 20,

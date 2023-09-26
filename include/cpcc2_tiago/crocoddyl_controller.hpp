@@ -124,6 +124,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
   Eigen::VectorXd xs1_;
   Eigen::MatrixXd Ks_;
 
+  std::string end_effector_;
+
   // is the first crocoddyl controller update done : target set
   bool is_first_update_ = true;
 
