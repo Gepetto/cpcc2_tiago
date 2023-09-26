@@ -21,8 +21,8 @@ class ParallelCrocSolver {
   pin::Data data_;
 
   std::thread thread_;
-  std::atomic<bool> running_ = true;
-  std::atomic<double> current_time_ = 0.;
+  std::atomic<bool> running_{true};
+  std::atomic<double> current_time_{0.};
 
   Locked<Eigen::Vector3d> target_;
   Locked<Eigen::VectorXd> x_meas_;
@@ -38,15 +38,19 @@ class ParallelCrocSolver {
   CircularVector<20> solving_time_vector_;
   CircularVector<20> solver_freq_vector_;
 
-  double last_current_time_ = 0;
-  double OCP_time_step_ = 0;
-  double OCP_solver_frequency_ = 0;
+  std::size_t step_count_{0};
 
-  pin::FrameIndex lh_id_ = -1;
+  std::shared_ptr<rclcpp::Logger> logger_;
 
-  int OCP_horizon_length_ = 0;
-  int OCP_solver_iterations_ = 0;
-  int n_joints_ = 0;
+  double last_current_time_{0};
+  double OCP_time_step_{0};
+  double OCP_solver_frequency_{0};
+
+  pin::FrameIndex lh_id_{static_cast<pin::FrameIndex>(-1)};
+
+  int OCP_horizon_length_{0};
+  int OCP_solver_iterations_{0};
+  int n_joints_{0};
 
   /// @brief Read parameters
   void read_params();
@@ -78,7 +82,7 @@ class ParallelCrocSolver {
   ParallelCrocSolver() = default;
   ~ParallelCrocSolver();
 
-  void init_model(const std::string& urdf_xml);
+  void init_model(const std::string& urdf_xml, const rclcpp::Logger& logger);
   void start_thread();
 
   using results_type =

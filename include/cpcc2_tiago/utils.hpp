@@ -65,6 +65,8 @@ class CircularVector : private Eigen::Vector<double, Size> {
 
   inline double mean() const { return super_type::mean(); }
 
+  inline Eigen::Index index() const { return end_; }
+
  private:
   Eigen::Index end_ = 0;
 };

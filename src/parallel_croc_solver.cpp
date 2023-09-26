@@ -1,6 +1,7 @@
 #include <cpcc2_tiago/parallel_croc_solver.hpp>
 
 // STL
+#include <rclcpp/logger.hpp>
 #include <thread>
 
 namespace cpcc2_tiago {
@@ -41,7 +42,10 @@ ParallelCrocSolver::~ParallelCrocSolver() {
   if (thread_.joinable()) thread_.join();
 }
 
-void ParallelCrocSolver::init_model(const std::string &urdf_xml) {
+void ParallelCrocSolver::init_model(const std::string &urdf_xml,
+                                    const rclcpp::Logger &logger) {
+  logger_ = std::make_shared<rclcpp::Logger>(logger);
+
   read_params();
   resize_vectors();
 
@@ -50,16 +54,16 @@ void ParallelCrocSolver::init_model(const std::string &urdf_xml) {
 
   model_ = model_builder::build_model(urdf_xml, joints_names_);
   data_ = pin::Data(model_);
-  std::cout << "Model built" << std::endl;
+  RCLCPP_DEBUG(*logger_, "Model built");
 
   // create the OCP object
   OCP_tiago_ = tiago_OCP::OCP(model_, data_);
 
-  // set the hand frame id
-  lh_id_ = model_.getFrameId("hand_tool_joint");
-  OCP_tiago_.setLhId(lh_id_);
-
   Params params;
+
+  // set the hand frame id
+  lh_id_ = model_.getFrameId(params.end_effector);
+  OCP_tiago_.setLhId(lh_id_);
 
   // set the OCP parameters
   OCP_horizon_length_ = params.OCP_horizon_length;
@@ -71,7 +75,7 @@ void ParallelCrocSolver::init_model(const std::string &urdf_xml) {
   OCP_tiago_.setTimeStep(OCP_time_step_);
   OCP_tiago_.setSolverIterations(OCP_solver_iterations_);
 
-  std::cout << "OCP settings set." << std::endl;
+  RCLCPP_DEBUG(*logger_, "OCP settings set.");
 }
 
 void ParallelCrocSolver::start_thread() {
@@ -102,18 +106,19 @@ void ParallelCrocSolver::start_thread() {
   // read the first target, it should be the current position
   const Eigen::Vector3d target = read_controller_target();
 
-  std::cout << "First target: " << target.transpose() << std::endl;
+  RCLCPP_DEBUG_STREAM(*logger_, "First target: " << target.transpose());
 
   OCP_tiago_.buildSolver(x_meas_, target);
 
-  std::cout << "Solver started at: " << OCP_solver_frequency_ << " Hz"
-            << std::endl;
+  RCLCPP_DEBUG_STREAM(*logger_,
+                      "Solver started at: " << OCP_solver_frequency_ << " Hz");
 
-  std::cout << "Solver iterations: " << OCP_solver_iterations_ << std::endl;
+  RCLCPP_DEBUG_STREAM(*logger_,
+                      "Solver iterations: " << OCP_solver_iterations_);
 
   OCP_tiago_.solveFirst(x_meas_);
 
-  OCP_tiago_.printCosts();
+  RCLCPP_DEBUG_STREAM(*logger_, "First cost: " << OCP_tiago_.getCosts());
 
   auto us = OCP_tiago_.get_us()[0];
   auto xs0 = OCP_tiago_.get_xs()[0];
@@ -122,7 +127,7 @@ void ParallelCrocSolver::start_thread() {
 
   send_controller_result(us, xs0, xs1, Ks);
 
-  std::cout << "First solve done" << std::endl;
+  RCLCPP_DEBUG_STREAM(*logger_, "First solve done");
 
   last_current_time_ = current_time_;
 
@@ -140,8 +145,7 @@ void ParallelCrocSolver::update() {
 
   if (target != OCP_tiago_.get_target()) {
     OCP_tiago_.changeTarget(target);
-    std::cout << "\x1b[A"
-              << "New target: " << target.transpose() << "            \n";
+    RCLCPP_DEBUG_STREAM(*logger_, "New target: " << target.transpose());
   }
 
   OCP_tiago_.solve(x_meas_);
@@ -161,10 +165,11 @@ void ParallelCrocSolver::wait() {
    */
   using namespace std::chrono_literals;
 
-  std::cout << "Solv freq: " << std::setprecision(2)
-            << solver_freq_vector_.mean() << " Hz, in "
-            << solving_time_vector_.mean() * 1e-6 << " ms     " << std::endl
-            << "\x1b[A";
+  if (++step_count_ % 5 == 0)
+    RCLCPP_DEBUG_STREAM(
+        *logger_, "Solv freq: " << std::setprecision(2)
+                                << solver_freq_vector_.mean() << " Hz, in "
+                                << solving_time_vector_.mean() * 1e-6 << " ms");
 
   const double target_time = 1e9 / OCP_solver_frequency_;
   while (current_time_ - last_current_time_ < target_time && running_)

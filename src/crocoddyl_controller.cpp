@@ -89,7 +89,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
         model_ = model_builder::build_model(msg.data, joints_names_);
         data_ = pin::Data(model_);
         lh_id_ = model_.getFrameId(this->end_effector_);
-        pcs_.init_model(msg.data);
+        pcs_.init_model(msg.data, this->get_node()->get_logger());
         this->urdf_sub_.reset();
       });
 
@@ -319,9 +319,10 @@ controller_interface::return_type CrocoddylController::update(
   }
 
   // print update frequency
-  std::cout << "Controllers update freq: " << update_freq_vector_.mean()
-            << " Hz           " << std::endl
-            << "\x1b[A";
+  if (++step_count_ % 5 == 0)
+    RCLCPP_DEBUG_STREAM(
+        get_node()->get_logger(),
+        "Controllers update freq: " << update_freq_vector_.mean() << " Hz");
 
   // compute the update frequency
   const double update_freq = 1e9 / (time - last_update_time_).nanoseconds();

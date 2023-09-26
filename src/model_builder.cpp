@@ -28,21 +28,11 @@ pin::Model build_model(const std::string &urdf,
                                   s) == actuatedJointNames.end();
                });
 
-  std::cout << "Actuated joints: " << std::endl;
-
-  for (auto s : actuatedJointNames) {
-    std::cout << s << std::endl;
-  }
-
   std::vector<pin::FrameIndex> jointsToLockIDs;
 
-  for (std::string jn : jointsToLock) {
-    if (full_model.existJointName(jn)) {
+  for (std::string jn : jointsToLock)
+    if (full_model.existJointName(jn))
       jointsToLockIDs.push_back(full_model.getJointId(jn));
-    } else {
-      std::cout << "Joint " << jn << " not found in the model" << std::endl;
-    }
-  };
 
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(full_model.nq);
 

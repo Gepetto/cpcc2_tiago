@@ -61,7 +61,7 @@ class OCP {
  public:
   OCP() = default;
 
-  OCP(const pin::Model &model, const pin::Data &data);
+  OCP(const pin::Model& model, const pin::Data& data);
 
   /// @brief initialize the parameters for the OCP, state, actuation and
   /// contacts (empty)
@@ -125,7 +125,7 @@ class OCP {
   /// @brief update the reference for the last running model
   void updateRunModHandReference();
 
-  void updateRunModXRegReference(const std::vector<Eigen::VectorXd> &x_Xreg);
+  void updateRunModXRegReference(const std::vector<Eigen::VectorXd>& x_Xreg);
 
   /// @brief compute the balancing torques for the current state
   /// @param x0 current state
@@ -150,9 +150,7 @@ class OCP {
   /// @brief change the target for the last running model
   void changeTarget(Eigen::Vector3d target);
 
-  void printCosts() {
-    std::cout << "First cost: " << *(costs(0)) << std::endl;
-  };
+  const crocoddyl::CostModelSum& getCosts() { return *costs(0); };
 
   /// @brief get the action model for the OCP of a node
   /// @param node_id  index of the node
@@ -179,27 +177,27 @@ class OCP {
       const unsigned long node_id);
 
   /// @brief return target
-  Eigen::Vector3d get_target() { return target_; };
+  const Eigen::Vector3d& get_target() { return target_; };
   /// @brief return the solver time step
   double get_time_step() { return time_step_; };
   /// @brief return the solver horizon length
   int get_horizon_length() { return horizon_length_; };
   /// @brief return the solver us
-  std::vector<Eigen::VectorXd> get_us() { return solver_->get_us(); };
+  const std::vector<Eigen::VectorXd>& get_us() { return solver_->get_us(); };
   /// @brief return the solver xs
-  std::vector<Eigen::VectorXd> get_xs() { return solver_->get_xs(); };
+  const std::vector<Eigen::VectorXd>& get_xs() { return solver_->get_xs(); };
   /// @brief return the solver gains
   Eigen::MatrixXd get_gains() { return solver_->get_K()[0]; };
   /// @brief return the balancing torques
-  Eigen::VectorXd get_balancing_torques() { return balancing_torques_; };
+  const Eigen::VectorXd& get_balancing_torques() { return balancing_torques_; };
   /// @brief return the solver state
-  croc::StateMultibody get_state() { return *state_; }
+  const croc::StateMultibody& get_state() { return *state_; }
   /// @brief return the solver actuation
-  croc::ActuationModelFull get_actuation() { return *actuation_; }
+  const croc::ActuationModelFull& get_actuation() { return *actuation_; }
   /// @brief return the solver problem
   boost::shared_ptr<croc::ShootingProblem> get_problem() { return problem_; }
   /// @brief return the solver
-  croc::SolverFDDP get_solver() { return *solver_; }
+  const croc::SolverFDDP& get_solver() { return *solver_; }
 };
 
 };  // namespace cpcc2_tiago::tiago_OCP

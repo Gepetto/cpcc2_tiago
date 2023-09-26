@@ -131,6 +131,8 @@ class CrocoddylController : public controller_interface::ControllerInterface {
 
   CircularVector<50> update_freq_vector_;
 
+  std::size_t step_count_{0};
+
   /// @brief Current state at time t, overwritten next timestep
   State current_state_;
 
