@@ -1,0 +1,32 @@
+name: rolling
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-rolling:
+    runs-on: ubuntu-latest
+    container: osrf/ros:rolling-simulation-jammy
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+        sudo tee /etc/apt/sources.list.d/robotpkg.list <<EOF
+        deb [arch=amd64] http://robotpkg.openrobots.org/packages/debian/pub $(lsb_release -sc) robotpkg
+        EOF
+        curl http://robotpkg.openrobots.org/packages/debian/robotpkg.key | sudo apt-key add -
+        sudo apt update
+        sudo apt install robotpkg-py3\*-crocoddyl coinor-libipopt-dev
+        {
+          echo "PATH=/opt/openrobots/bin:$PATH"
+          echo "PKG_CONFIG_PATH=/opt/openrobots/lib/pkgconfig:$PKG_CONFIG_PATH"
+          echo "LD_LIBRARY_PATH=/opt/openrobots/lib:$LD_LIBRARY_PATH"
+          echo "PYTHONPATH=/opt/openrobots/lib/python3.10/site-packages:$PYTHONPATH"
+        } >> "$GITHUB_ENV"
+    - run: echo $PATH
+    - uses: ros-tooling/action-ros-ci@v0.3
+      with:
+        package-name: cpcc2_tiago
+        target-ros2-distro: humble
