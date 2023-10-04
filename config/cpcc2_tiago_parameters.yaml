@@ -1,24 +1,27 @@
 cpcc2_tiago:
 
-  urdf_path: {
-    type: string,
-    default_value: /home/jgleyze/stage_laas_gepetto/cpcc2_tiago_ws/src/cpcc2_tiago/urdf/tiago.urdf,
-    description: "Path to the URDF file",
-  }
   joints: {
     type: string_array,
-    default_value: [ arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint], #it's very important for them to be ordered !
+    default_value: [ arm_1_joint, arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint, arm_6_joint, arm_7_joint ], #it's very important for them to be ordered !
     description: "Name of the arm joints to control",
   }
+
   pveg_joints_command_type: {
     type: string_array,
-    default_value: [ effort, effort, effort, effort, effort],
+    default_value: [ effort, effort, effort, effort, effort, effort, effort ],
     description: "Type of command to send to the joints",
   }
+
   state_interfaces_name: {
     type: string_array,
-    default_value : [position, velocity, effort],
+    default_value : [ position, velocity, effort ],
     description: "Name of the state interface",
+  }
+
+  end_effector: {
+    type: string,
+    default_value: "hand_tool_joint",
+    description: "Name of the end effector joint",
   }
 
   OCP_horizon_length: {
@@ -29,7 +32,7 @@ cpcc2_tiago:
 
   OCP_time_step: {
     type: double,
-    default_value: 0.05,
+    default_value: 0.01,
     description: "OCP time step",
   }
 
@@ -41,13 +44,13 @@ cpcc2_tiago:
 
   OCP_solver_frequency: {
     type: double,
-    default_value: 20.0,
+    default_value: 100.0,
     description: "OCP solver frequency",
   }
 
   interpolation_type: {
     type: string,
-    default_value: none,
+    default_value: "aba",
     description: "Interpolation type, can be linear, aba or none",
   }
 
@@ -68,5 +71,3 @@ cpcc2_tiago:
     default_value: true,
     description: "Enable data stream to topic for plotjuggler",
   }
-
-

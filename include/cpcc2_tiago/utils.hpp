@@ -1,9 +1,15 @@
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#pragma once
 
-#include "Eigen/Dense"
+// Eigen
+#include <Eigen/Dense>
+
+namespace pinocchio {}
+namespace crocoddyl {}
 
 namespace cpcc2_tiago {
+
+namespace pin = pinocchio;
+namespace croc = crocoddyl;
 
 // this struct help to encapsulate the ricatti command
 struct RicattiCommand {
@@ -13,24 +19,22 @@ struct RicattiCommand {
   Eigen::VectorXd x1_command;
   Eigen::MatrixXd K_command;
 
-  RicattiCommand() {}
+  inline RicattiCommand() = default;
 
-  RicattiCommand(int n_joints) {
-    u_command.resize(n_joints);
-    x0_command.resize(2 * n_joints);
-    xinter_command.resize(2 * n_joints);
-    x1_command.resize(2 * n_joints);
-    K_command.resize(n_joints, 2 * n_joints);
-  }
+  inline RicattiCommand(int n_joints)
+      : u_command(n_joints),
+        x0_command(2 * n_joints),
+        xinter_command(2 * n_joints),
+        x1_command(2 * n_joints),
+        K_command(n_joints, 2 * n_joints) {}
 
-  bool operator==(const RicattiCommand &rhs) const {
+  inline bool operator==(const RicattiCommand &rhs) const {
     return (u_command == rhs.u_command && x0_command == rhs.x0_command &&
             x1_command == rhs.x1_command && K_command == rhs.K_command);
   }
 
-  bool operator!=(const RicattiCommand &rhs) const {
-    return (u_command != rhs.u_command || x0_command != rhs.x0_command ||
-            x1_command != rhs.x1_command || K_command != rhs.K_command);
+  inline bool operator!=(const RicattiCommand &rhs) const {
+    return !(*this == rhs);
   };
 };
 
@@ -39,29 +43,32 @@ struct State {
   Eigen::VectorXd position;
   Eigen::VectorXd velocity;
 
-  State() {}
-  State(int n_joints) {
-    position.resize(n_joints);
-    velocity.resize(n_joints);
-  }
+  inline State() = default;
+  inline State(int n_joints) : position(n_joints), velocity(n_joints) {}
 };
 
 // circular vector to store values over time and calculate the rolling mean
-struct CircularVector {
-  Eigen::VectorXd vector;
+template <Eigen::Index Size>
+class CircularVector : private Eigen::Vector<double, Size> {
+ public:
+  using super_type = Eigen::Vector<double, Size>;
+  using size_type = Eigen::Index;
 
-  CircularVector(int size) : vector(size) { vector.setZero(); }
+  static_assert(Size > 0);
 
-  void circular_append(double new_value) {
-    Eigen::VectorXd shifted_vector(vector.size());
-    for (int i = 0; i < vector.size() - 1; ++i) {
-      shifted_vector(i) = vector(i + 1);
-    }
-    shifted_vector(vector.size() - 1) = new_value;
-    vector = shifted_vector;
+  inline CircularVector() { super_type::setZero(); }
+
+  inline void append(double new_value) {
+    super_type::operator[](end_++) = new_value;
+    if (end_ > Size) end_ -= Size;
   }
+
+  inline double mean() const { return super_type::mean(); }
+
+  inline Eigen::Index index() const { return end_; }
+
+ private:
+  Eigen::Index end_ = 0;
 };
 
-} // namespace cpcc2_tiago
-
-#endif // UTILS_HPP
+}  // namespace cpcc2_tiago

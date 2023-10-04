@@ -1,16 +1,6 @@
-#include "cpcc2_tiago/pveg_chained_controller.hpp"
+#include <cpcc2_tiago/pveg_chained_controller.hpp>
 
 namespace cpcc2_tiago {
-
-void PvegChainedController::init_shared_memory() {
-  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::open_only,
-      "crocoddyl_shm"); // segment name
-
-  start_sending_cmd_shm_ =
-      crocoddyl_shm_.find<bool>("start_sending_cmd_shm").first;
-  // Find the vector using the c-string name
-}
 
 // Create a parameter listener to listen to published ros2 param
 void PvegChainedController::declare_parameters() {
@@ -38,16 +28,13 @@ controller_interface::CallbackReturn PvegChainedController::read_parameters() {
 
   n_joints_ = params_.joints.size();
 
-  for (int i = 0; i < n_joints_; i++) {
+  for (int i = 0; i < n_joints_; i++)
     command_interface_types_.push_back(params_.joints[i] + "/" +
                                        params_.pveg_joints_command_type[i]);
-  }
 
-  for (auto state_inter_ : params_.state_interfaces_name) {
-    for (auto joint : params_.joints) {
+  for (const auto& state_inter_ : params_.state_interfaces_name)
+    for (const auto& joint : params_.joints)
       state_interface_types_.push_back(joint + "/" + state_inter_);
-    }
-  }
 
   reference_interfaces_.resize(
       n_joints_ + 2 * n_joints_ + n_joints_ * 2 * n_joints_ + 2 * n_joints_, 0);
@@ -74,36 +61,34 @@ controller_interface::CallbackReturn PvegChainedController::on_init() {
 
   try {
     declare_parameters();
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n",
             e.what());
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  auto ret = this->read_parameters();
+  auto ret = read_parameters();
   if (ret != controller_interface::CallbackReturn::SUCCESS) {
     return ret;
   }
 
-  // try to lock and unlock the mutex to check if it's available
-  while (true) {
-    if (mutex_.try_lock()) {
-      break;
-    }
+  urdf_sub_ = get_node()->create_subscription<std_msgs::msg::String>(
+      "/robot_description", rclcpp::QoS{1}.reliable().transient_local(),
+      [this](const std_msgs::msg::String& msg) {
+        RCLCPP_INFO(get_node()->get_logger(),
+                    "Successfully recived urdf from /robot_description");
+        model_ = model_builder::build_model(msg.data, params_.joints);
+        data_ = pin::Data(model_);
+        this->urdf_sub_.reset();
+      });
 
-    if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::milliseconds(10))) {
-      mutex_.unlock();
-    }
-  }
-
-  mutex_.unlock();
-
-  init_shared_memory();
-
-  model_ = model_builder::build_model(params_.urdf_path, params_.joints);
-
-  data_ = Data(model_);
+  start_sub_ = get_node()->create_subscription<std_msgs::msg::Empty>(
+      "/cpcc2_tiago_start", rclcpp::QoS{1}.reliable().transient_local(),
+      [this](const std_msgs::msg::Empty&) {
+        RCLCPP_INFO(get_node()->get_logger(),
+                    "Successfully received start from /cpcc2_tiago_start");
+        this->start_sub_.reset();
+      });
 
   ricatti_command_pub_ =
       get_node()->create_publisher<std_msgs::msg::Float64MultiArray>(
@@ -172,7 +157,7 @@ PvegChainedController::on_export_reference_interfaces() {
         params_.joints[i] + "/" + hardware_interface::HW_IF_VELOCITY + "_0",
         &reference_interfaces_[2 * n_joints_ + i]));
   }
-  for (int i = 0; i < n_joints_; i++) { // all the gains
+  for (int i = 0; i < n_joints_; i++) {  // all the gains
     for (int j = 0; j < 2 * n_joints_; j++) {
       reference_interfaces.push_back(hardware_interface::CommandInterface(
           get_node()->get_name(),
@@ -210,30 +195,31 @@ bool PvegChainedController::on_set_chained_mode(bool chained_mode) {
 }
 
 controller_interface::return_type
+PvegChainedController::update_reference_from_subscribers(
+    const rclcpp::Time&, const rclcpp::Duration&) {
+  return update_reference_from_subscribers();
+}
+
+controller_interface::return_type
 PvegChainedController::update_reference_from_subscribers() {
   RCLCPP_INFO_ONCE(get_node()->get_logger(),
                    "update_reference_from_subscribers");
-  return update() ? controller_interface::return_type::OK
-                  : controller_interface::return_type::ERROR;
+  return my_update() ? controller_interface::return_type::OK
+                     : controller_interface::return_type::ERROR;
 }
 
 controller_interface::return_type
 PvegChainedController::update_and_write_commands(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
+    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   RCLCPP_INFO_ONCE(get_node()->get_logger(), "update_and_write_commands");
-  return update() ? controller_interface::return_type::OK
-                  : controller_interface::return_type::ERROR;
+  return my_update() ? controller_interface::return_type::OK
+                     : controller_interface::return_type::ERROR;
 }
 
-bool PvegChainedController::update() {
+bool PvegChainedController::my_update() {
   // first we read the current state of the robot
 
-  if (start_sending_cmd_ == false) {
-    mutex_.lock();
-    start_sending_cmd_ = *start_sending_cmd_shm_;
-    mutex_.unlock();
-    return true;
-  }
+  if (start_sub_ || urdf_sub_) return true;
 
   current_state_ = read_state_from_hardware();
 
@@ -259,7 +245,7 @@ bool PvegChainedController::update() {
   } else {
     // interpolate
     aba(model_, data_, measuredX_.head(model_.nq), measuredX_.tail(model_.nv),
-        eff_command_); // compute ddq
+        eff_command_);  // compute ddq
 
     // publish ddq
     ddq_msg_.data.assign(data_.ddq.data(), data_.ddq.data() + data_.ddq.size());
@@ -269,17 +255,15 @@ bool PvegChainedController::update() {
                          .to_chrono<std::chrono::nanoseconds>()
                          .count();
     // interpolate
-    if (params_.interpolation_type == "aba") {
+    if (params_.interpolation_type == "aba")
       interpolated_xs_ = aba_interpolate_xs(ricatti_command_.x0_command,
                                             data_.ddq, interpolate_t_ * 1e-9);
-
-    } else if (params_.interpolation_type == "linear") {
+    else if (params_.interpolation_type == "linear")
       interpolated_xs_ = lin_interpolate_xs(ricatti_command_.x0_command,
                                             ricatti_command_.x1_command,
                                             interpolate_t_ * 1e-9);
-    } else {
+    else
       interpolated_xs_ = ricatti_command_.x0_command;
-    }
 
     interpolated_ricatti_command_.xinter_command = interpolated_xs_;
 
@@ -300,7 +284,6 @@ bool PvegChainedController::update() {
 }
 
 RicattiCommand PvegChainedController::read_joints_commands() {
-
   RicattiCommand ric_cmd(n_joints_);
 
   double command_u;
@@ -311,16 +294,16 @@ RicattiCommand PvegChainedController::read_joints_commands() {
   double command_K;
 
   for (int i = 0; i < n_joints_; i++) {
-    command_u = reference_interfaces_[i]; // arm_i_joint/effort
+    command_u = reference_interfaces_[i];  // arm_i_joint/effort
     // check if NaN, if nan set to current state or 0 to avoid large jump in
     // torque
     ric_cmd.u_command[i] = (command_u == command_u) ? command_u : 0;
 
-    command_q0 = reference_interfaces_[n_joints_ + i]; // arm_i_joint/pos0
+    command_q0 = reference_interfaces_[n_joints_ + i];  // arm_i_joint/pos0
     ric_cmd.x0_command[i] =
         (command_q0 == command_q0) ? command_q0 : current_state_.position[i];
 
-    command_v0 = reference_interfaces_[2 * n_joints_ + i]; // arm_i_joint/vel0
+    command_v0 = reference_interfaces_[2 * n_joints_ + i];  // arm_i_joint/vel0
     ric_cmd.x0_command[n_joints_ + i] =
         (command_v0 == command_v0) ? command_v0 : current_state_.velocity[i];
 
@@ -331,13 +314,13 @@ RicattiCommand PvegChainedController::read_joints_commands() {
 
     command_q1 =
         reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                              i]; // arm_i_joint/pos1
+                              i];  // arm_i_joint/pos1
     ric_cmd.x1_command[i] =
         (command_q1 == command_q1) ? command_q1 : command_q0;
 
     command_v1 =
         reference_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ +
-                              n_joints_ + i]; // arm_i_joint/vel1
+                              n_joints_ + i];  // arm_i_joint/vel1
     ric_cmd.x1_command[n_joints_ + i] =
         (command_v1 == command_v1) ? command_v1 : command_v0;
   }
@@ -354,9 +337,8 @@ State PvegChainedController::read_state_from_hardware() {
   return curr_state;
 }
 
-Eigen::VectorXd
-PvegChainedController::compute_ricatti_command(RicattiCommand ric_cmd,
-                                               Eigen::VectorXd x) {
+Eigen::VectorXd PvegChainedController::compute_ricatti_command(
+    RicattiCommand ric_cmd, Eigen::VectorXd x) {
   // compute the ricatti command cmd = u + K*(x_cmd - x_meas)
   return ric_cmd.u_command + ric_cmd.K_command * (ric_cmd.xinter_command - x);
 }
@@ -384,9 +366,8 @@ Eigen::VectorXd PvegChainedController::lin_interpolate_xs(Eigen::VectorXd x0,
   return (x1 - x0) / params_.OCP_time_step * t + x0;
 }
 
-Eigen::VectorXd
-PvegChainedController::adapt_command_to_type(Eigen::VectorXd eff_command,
-                                             RicattiCommand ric_cmd) {
+Eigen::VectorXd PvegChainedController::adapt_command_to_type(
+    Eigen::VectorXd eff_command, RicattiCommand ric_cmd) {
   Eigen::VectorXd command(n_joints_);
 
   // if the the actuators can't be controlled in effort, we need to convert the
@@ -412,9 +393,9 @@ void PvegChainedController::set_command(Eigen::VectorXd command) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
-#include "pluginlib/class_list_macros.hpp"
+#include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(cpcc2_tiago::PvegChainedController,
                        controller_interface::ChainableControllerInterface)

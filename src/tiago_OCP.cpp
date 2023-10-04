@@ -1,29 +1,27 @@
-#include "cpcc2_tiago/tiago_OCP.hpp"
+#include <cpcc2_tiago/tiago_OCP.hpp>
 
-namespace tiago_OCP {
+namespace cpcc2_tiago::tiago_OCP {
 
-OCP::OCP() {}
-
-OCP::OCP(const Model model, const Data data) {
-  model_ = model;
-  data_ = data;
+OCP::OCP(const pin::Model &model, const pin::Data &data)
+    : model_{model}, data_{data} {
   initOCPParms();
 }
 
 void OCP::initOCPParms() {
-  state_ =
-      boost::make_shared<StateMultibody>(boost::make_shared<Model>(model_));
+  state_ = boost::make_shared<croc::StateMultibody>(
+      boost::make_shared<pin::Model>(model_));
 
   state_nv_ = state_->get_nv();
   state_nq_ = state_->get_nq();
-  actuation_ = boost::make_shared<ActuationModelFull>(state_);
+  actuation_ = boost::make_shared<croc::ActuationModelFull>(state_);
   actuation_nu_ = actuation_->get_nu();
-  contacts_ = boost::make_shared<ContactModelMultiple>(state_, actuation_nu_);
+  contacts_ =
+      boost::make_shared<croc::ContactModelMultiple>(state_, actuation_nu_);
 }
 
-boost::shared_ptr<ActionModelAbstract> OCP::buildRunningModel() {
-  boost::shared_ptr<CostModelSum> costs =
-      boost::make_shared<CostModelSum>(state_, actuation_->get_nu());
+boost::shared_ptr<croc::ActionModelAbstract> OCP::buildRunningModel() {
+  boost::shared_ptr<croc::CostModelSum> costs =
+      boost::make_shared<croc::CostModelSum>(state_, actuation_->get_nu());
 
   // define the task for the running nodes
   defineHandTask(costs, w_hand_, costs_weights_["lh_goal_weight"]);
@@ -31,20 +29,21 @@ boost::shared_ptr<ActionModelAbstract> OCP::buildRunningModel() {
   defineUReg(costs, costs_weights_["uReg_weight"]);
   defineXbounds(costs, costs_weights_["xBounds_weight"]);
 
-  boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model =
-      boost::make_shared<DifferentialActionModelContactFwdDynamics>(
-          state_, actuation_, contacts_, costs);
+  boost::shared_ptr<croc::DifferentialActionModelContactFwdDynamics>
+      diff_act_model =
+          boost::make_shared<croc::DifferentialActionModelContactFwdDynamics>(
+              state_, actuation_, contacts_, costs);
 
-  boost::shared_ptr<IntegratedActionModelEuler> running_model =
-      boost::make_shared<IntegratedActionModelEuler>(diff_act_model,
-                                                     time_step_);
+  boost::shared_ptr<croc::IntegratedActionModelEuler> running_model =
+      boost::make_shared<croc::IntegratedActionModelEuler>(diff_act_model,
+                                                           time_step_);
 
   return running_model;
 }
 
-boost::shared_ptr<ActionModelAbstract> OCP::buildTerminalModel() {
-  boost::shared_ptr<CostModelSum> costs =
-      boost::make_shared<CostModelSum>(state_, actuation_->get_nu());
+boost::shared_ptr<croc::ActionModelAbstract> OCP::buildTerminalModel() {
+  boost::shared_ptr<croc::CostModelSum> costs =
+      boost::make_shared<croc::CostModelSum>(state_, actuation_->get_nu());
 
   // define the task for the last node
   defineHandTask(costs, w_hand_, costs_weights_["lh_goal_weight"]);
@@ -52,12 +51,13 @@ boost::shared_ptr<ActionModelAbstract> OCP::buildTerminalModel() {
   defineUReg(costs, costs_weights_["uReg_weight"]);
   defineXbounds(costs, costs_weights_["xBounds_weight"]);
 
-  boost::shared_ptr<DifferentialActionModelContactFwdDynamics> diff_act_model =
-      boost::make_shared<DifferentialActionModelContactFwdDynamics>(
-          state_, actuation_, contacts_, costs);
+  boost::shared_ptr<croc::DifferentialActionModelContactFwdDynamics>
+      diff_act_model =
+          boost::make_shared<croc::DifferentialActionModelContactFwdDynamics>(
+              state_, actuation_, contacts_, costs);
 
-  boost::shared_ptr<IntegratedActionModelEuler> term_model =
-      boost::make_shared<IntegratedActionModelEuler>(diff_act_model, 0.0);
+  boost::shared_ptr<croc::IntegratedActionModelEuler> term_model =
+      boost::make_shared<croc::IntegratedActionModelEuler>(diff_act_model, 0.0);
 
   return term_model;
 }
@@ -76,19 +76,21 @@ Eigen::VectorXd OCP::computeBalancingTorques(Eigen::VectorXd x0) {
 
 void OCP::buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target) {
   // Creating all the running models
-  std::vector<boost::shared_ptr<ActionModelAbstract>> running_models =
-      std::vector<boost::shared_ptr<ActionModelAbstract>>(horizon_length_);
+  std::vector<boost::shared_ptr<croc::ActionModelAbstract>> running_models =
+      std::vector<boost::shared_ptr<croc::ActionModelAbstract>>(
+          horizon_length_);
 
   for (size_t node_id = 0; node_id < horizon_length_; node_id++) {
     running_models[node_id] = buildRunningModel();
   }
 
-  boost::shared_ptr<ActionModelAbstract> term_model = buildTerminalModel();
+  boost::shared_ptr<croc::ActionModelAbstract> term_model =
+      buildTerminalModel();
 
-  problem_ =
-      boost::make_shared<ShootingProblem>(x0_, running_models, term_model);
+  problem_ = boost::make_shared<croc::ShootingProblem>(x0_, running_models,
+                                                       term_model);
 
-  solver_ = boost::make_shared<SolverFDDP>(problem_);
+  solver_ = boost::make_shared<croc::SolverFDDP>(problem_);
 
   balancing_torques_.resize(actuation_nu_);
   balancing_torques_ = computeBalancingTorques(x0);
@@ -103,30 +105,30 @@ void OCP::buildSolver(Eigen::VectorXd x0, Eigen::Vector3d target) {
   costs(horizon_length_)->get_costs().at("lh_goal")->active = true;
 }
 
-void OCP::setTarget(Vector3d target) {
+void OCP::setTarget(Eigen::Vector3d target) {
   target_ = target;
-  lh_Mref_ = SE3(Matrix3d::Identity(), target_);
+  lh_Mref_ = pin::SE3(Eigen::Matrix3d::Identity(), target_);
   // change the target for all node
   for (size_t node_id = 0; node_id < horizon_length_ + 1; node_id++) {
-    boost::static_pointer_cast<ResidualModelFramePlacement>(
+    boost::static_pointer_cast<croc::ResidualModelFramePlacement>(
         costs(node_id)->get_costs().at("lh_goal")->cost->get_residual())
         ->set_reference(lh_Mref_);
   }
 };
 
-void OCP::changeTarget(Vector3d target) {
+void OCP::changeTarget(Eigen::Vector3d target) {
   target_ = target;
-  lh_Mref_ = SE3(Matrix3d::Identity(), target_);
+  lh_Mref_ = pin::SE3(Eigen::Matrix3d::Identity(), target_);
   // only change the cost of the terminal node
 
-  boost::static_pointer_cast<ResidualModelFramePlacement>(
+  boost::static_pointer_cast<croc::ResidualModelFramePlacement>(
       costs(horizon_length_)->get_costs().at("lh_goal")->cost->get_residual())
       ->set_reference(lh_Mref_);
 }
 
-void OCP::solveFirst(VectorXd measured_x) {
-  std::vector<VectorXd> xs_init;
-  std::vector<VectorXd> us_init;
+void OCP::solveFirst(Eigen::VectorXd measured_x) {
+  std::vector<Eigen::VectorXd> xs_init;
+  std::vector<Eigen::VectorXd> us_init;
 
   for (std::size_t i = 0; i < horizon_length_; i++) {
     xs_init.push_back(measured_x);
@@ -148,10 +150,9 @@ void OCP::recede() {
 }
 
 void OCP::updateRunModHandReference() {
-
   costs(horizon_length_ - 1)->get_costs().at("lh_goal")->active = true;
 
-  boost::static_pointer_cast<ResidualModelFramePlacement>(
+  boost::static_pointer_cast<croc::ResidualModelFramePlacement>(
       costs(horizon_length_ - 1)
           ->get_costs()
           .at("lh_goal")
@@ -159,18 +160,19 @@ void OCP::updateRunModHandReference() {
       ->set_reference(lh_Mref_);
 }
 
-void OCP::updateRunModXRegReference(std::vector<VectorXd> x_Xreg) {
+void OCP::updateRunModXRegReference(
+    std::vector<Eigen::VectorXd> const &x_Xreg) {
   for (size_t i = 0; i < horizon_length_ - 1; i++) {
-    boost::static_pointer_cast<ResidualModelState>(
+    boost::static_pointer_cast<croc::ResidualModelState>(
         costs(i)->get_costs().at("xReg")->cost->get_residual())
         ->set_reference(x_Xreg[i + 1]);
   }
-  boost::static_pointer_cast<ResidualModelState>(
+  boost::static_pointer_cast<croc::ResidualModelState>(
       costs(horizon_length_ - 1)->get_costs().at("xReg")->cost->get_residual())
       ->set_reference(x_Xreg.back());
 }
 
-void OCP::solve(VectorXd measured_x) {
+void OCP::solve(Eigen::VectorXd measured_x) {
   // recede the horizon and update the reference of the last node
   recede();
   updateRunModHandReference();
@@ -192,8 +194,8 @@ void OCP::solve(VectorXd measured_x) {
   solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
 }
 
-boost::shared_ptr<crocoddyl::ActionModelAbstract>
-OCP::ama(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::ActionModelAbstract> OCP::ama(
+    const unsigned long node_id) {
   if (node_id == horizon_length_) {
     return solver_->get_problem()->get_terminalModel();
   } else {
@@ -201,8 +203,8 @@ OCP::ama(const unsigned long node_id) {
   }
 }
 
-boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-OCP::iam(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> OCP::iam(
+    const unsigned long node_id) {
   return boost::static_pointer_cast<crocoddyl::IntegratedActionModelEuler>(
       ama(node_id));
 }
@@ -214,14 +216,14 @@ OCP::dam(const unsigned long node_id) {
       iam(node_id)->get_differential());
 }
 
-boost::shared_ptr<crocoddyl::CostModelSum>
-OCP::costs(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::CostModelSum> OCP::costs(
+    const unsigned long node_id) {
   return dam(node_id)->get_costs();
 }
 
-boost::shared_ptr<crocoddyl::ActionDataAbstract>
-OCP::ada(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::ActionDataAbstract> OCP::ada(
+    const unsigned long node_id) {
   return solver_->get_problem()->get_runningDatas()[node_id];
 }
 
-}; // namespace tiago_OCP
+}  // namespace cpcc2_tiago::tiago_OCP
