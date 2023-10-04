@@ -55,8 +55,9 @@ class PvegChainedController
   /// @brief Update Interfaces from subscribers. This should be using a
   /// realtime subscriber if CROCODDYL_PVEG_CHAINED mode is false
   /// @return Controller Interface Success
-  controller_interface::return_type update_reference_from_subscribers()
-      override;
+  controller_interface::return_type update_reference_from_subscribers(
+      const rclcpp::Time &time, const rclcpp::Duration &period);
+  controller_interface::return_type update_reference_from_subscribers();
 
   /// @brief Update Interface from update of High Level Controller.
   /// CROCODDYL_PVEG_CHAINED Mode is true
@@ -68,7 +69,7 @@ class PvegChainedController
 
   /// @brief Update method for both the methods for
   /// @return If Successful then True, else false
-  bool update();
+  bool my_update();
 
   /**
    * Derived controller have to declare parameters in this method.

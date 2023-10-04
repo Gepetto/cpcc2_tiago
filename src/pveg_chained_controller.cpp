@@ -195,22 +195,28 @@ bool PvegChainedController::on_set_chained_mode(bool chained_mode) {
 }
 
 controller_interface::return_type
+PvegChainedController::update_reference_from_subscribers(
+    const rclcpp::Time&, const rclcpp::Duration&) {
+  return update_reference_from_subscribers();
+}
+
+controller_interface::return_type
 PvegChainedController::update_reference_from_subscribers() {
   RCLCPP_INFO_ONCE(get_node()->get_logger(),
                    "update_reference_from_subscribers");
-  return update() ? controller_interface::return_type::OK
-                  : controller_interface::return_type::ERROR;
+  return my_update() ? controller_interface::return_type::OK
+                     : controller_interface::return_type::ERROR;
 }
 
 controller_interface::return_type
 PvegChainedController::update_and_write_commands(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   RCLCPP_INFO_ONCE(get_node()->get_logger(), "update_and_write_commands");
-  return update() ? controller_interface::return_type::OK
-                  : controller_interface::return_type::ERROR;
+  return my_update() ? controller_interface::return_type::OK
+                     : controller_interface::return_type::ERROR;
 }
 
-bool PvegChainedController::update() {
+bool PvegChainedController::my_update() {
   // first we read the current state of the robot
 
   if (start_sub_ || urdf_sub_) return true;
