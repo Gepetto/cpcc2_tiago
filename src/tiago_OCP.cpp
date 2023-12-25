@@ -148,7 +148,6 @@ void OCP::recede() {
 }
 
 void OCP::updateRunModHandReference() {
-
   costs(horizon_length_ - 1)->get_costs().at("lh_goal")->active = true;
 
   boost::static_pointer_cast<ResidualModelFramePlacement>(
@@ -192,8 +191,8 @@ void OCP::solve(VectorXd measured_x) {
   solver_->solve(solver_->get_xs(), solver_->get_us(), solver_iterations_);
 }
 
-boost::shared_ptr<crocoddyl::ActionModelAbstract>
-OCP::ama(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::ActionModelAbstract> OCP::ama(
+    const unsigned long node_id) {
   if (node_id == horizon_length_) {
     return solver_->get_problem()->get_terminalModel();
   } else {
@@ -201,8 +200,8 @@ OCP::ama(const unsigned long node_id) {
   }
 }
 
-boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-OCP::iam(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> OCP::iam(
+    const unsigned long node_id) {
   return boost::static_pointer_cast<crocoddyl::IntegratedActionModelEuler>(
       ama(node_id));
 }
@@ -214,14 +213,14 @@ OCP::dam(const unsigned long node_id) {
       iam(node_id)->get_differential());
 }
 
-boost::shared_ptr<crocoddyl::CostModelSum>
-OCP::costs(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::CostModelSum> OCP::costs(
+    const unsigned long node_id) {
   return dam(node_id)->get_costs();
 }
 
-boost::shared_ptr<crocoddyl::ActionDataAbstract>
-OCP::ada(const unsigned long node_id) {
+boost::shared_ptr<crocoddyl::ActionDataAbstract> OCP::ada(
+    const unsigned long node_id) {
   return solver_->get_problem()->get_runningDatas()[node_id];
 }
 
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP

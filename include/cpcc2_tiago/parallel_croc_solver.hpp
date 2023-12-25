@@ -20,7 +20,7 @@ struct CircularVector {
   Eigen::VectorXd vector;
 
   CircularVector(int size) : vector(size) {
-    vector.setZero(); // Initialiser le vecteur avec des zéros
+    vector.setZero();  // Initialiser le vecteur avec des zéros
   }
 
   void circular_append(double new_value) {
@@ -33,7 +33,7 @@ struct CircularVector {
   }
 };
 
-cpcc2_tiago::Params params_; // load parmeters from yaml file
+cpcc2_tiago::Params params_;  // load parmeters from yaml file
 
 boost::interprocess::named_mutex mutex_{boost::interprocess::open_or_create,
                                         "crocoddyl_mutex"};
@@ -123,4 +123,4 @@ Eigen::Vector3d read_controller_target();
 void send_controller_result(Eigen::VectorXd us, Eigen::VectorXd xs0,
                             Eigen::VectorXd xs1, Eigen::MatrixXd Ks);
 
-#endif // PARALLEL_CROC_SOLVER_HPP
+#endif  // PARALLEL_CROC_SOLVER_HPP

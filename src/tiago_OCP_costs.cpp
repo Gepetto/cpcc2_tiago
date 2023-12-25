@@ -75,4 +75,4 @@ void OCP::defineXbounds(boost::shared_ptr<crocoddyl::CostModelSum> &cost,
   cost.get()->addCost("xBounds", x_bounds, xBounds_weight);
 }
 
-} // namespace tiago_OCP
+}  // namespace tiago_OCP
