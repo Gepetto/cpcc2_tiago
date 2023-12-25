@@ -25,7 +25,7 @@ using namespace Eigen;
 
 namespace tiago_OCP {
 class OCP {
-private:
+ private:
   boost::shared_ptr<StateMultibody> state_;
   boost::shared_ptr<ActuationModelFull> actuation_;
   boost::shared_ptr<ContactModelMultiple> contacts_;
@@ -58,7 +58,7 @@ private:
 
   FrameIndex lh_id_;
 
-public:
+ public:
   OCP();
   OCP(const Model model, const Data data);
 
@@ -155,18 +155,18 @@ public:
 
   /// @brief get the action model for the OCP of a node
   /// @param node_id  index of the node
-  boost::shared_ptr<crocoddyl::ActionModelAbstract>
-  ama(const unsigned long node_id);
+  boost::shared_ptr<crocoddyl::ActionModelAbstract> ama(
+      const unsigned long node_id);
 
   /// @brief get the integrated action model for the OCP of a node
   /// @param node_id  index of the node
-  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler>
-  iam(const unsigned long node_id);
+  boost::shared_ptr<crocoddyl::IntegratedActionModelEuler> iam(
+      const unsigned long node_id);
 
   /// @brief get the differencial action model for the OCP of a node
   /// @param node_id  index of the node
-  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics>
-  dam(const unsigned long node_id);
+  boost::shared_ptr<crocoddyl::DifferentialActionModelContactFwdDynamics> dam(
+      const unsigned long node_id);
 
   /// @brief get the cost model for the OCP of a node
   /// @param node_id  index of the node
@@ -174,8 +174,8 @@ public:
 
   /// @brief get the action data for the OCP of a node
   /// @param node_id  index of the node
-  boost::shared_ptr<crocoddyl::ActionDataAbstract>
-  ada(const unsigned long node_id);
+  boost::shared_ptr<crocoddyl::ActionDataAbstract> ada(
+      const unsigned long node_id);
 
   /// @brief return target
   Vector3d get_target() { return (target_); };
@@ -200,6 +200,6 @@ public:
   /// @brief return the solver
   SolverFDDP get_solver() { return *solver_; }
 };
-}; // namespace tiago_OCP
+};  // namespace tiago_OCP
 
 #endif

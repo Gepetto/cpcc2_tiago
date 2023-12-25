@@ -6,7 +6,6 @@
 #include "boost/interprocess/shared_memory_object.hpp"
 #include "boost/interprocess/sync/named_mutex.hpp"
 #include "boost/thread/thread_time.hpp"
-
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "cpcc2_tiago/model_builder.hpp"
 #include "cpcc2_tiago/utils.hpp"
@@ -26,22 +25,22 @@ namespace cpcc2_tiago {
 /// Level Controller
 class PvegChainedController
     : public controller_interface::ChainableControllerInterface {
-public:
+ public:
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
   controller_interface::CallbackReturn on_init() override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration
-  command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration command_interface_configuration()
+      const override;
 
   /// @brief Documentation Inherited
   CPCC2_TIAGO_PUBLIC
-  controller_interface::InterfaceConfiguration
-  state_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration()
+      const override;
 
-protected:
+ protected:
   /// @brief Export reference_interfaces_ to Higher level controller
   std::vector<hardware_interface::CommandInterface>
   on_export_reference_interfaces() override;
@@ -55,17 +54,16 @@ protected:
   /// @brief Update Interfaces from subscribers. This should be using a
   /// realtime subscriber if CROCODDYL_PVEG_CHAINED mode is false
   /// @return Controller Interface Success
-  controller_interface::return_type
-  update_reference_from_subscribers() override;
+  controller_interface::return_type update_reference_from_subscribers()
+      override;
 
   /// @brief Update Interface from update of High Level Controller.
   /// CROCODDYL_PVEG_CHAINED Mode is true
   /// @param time Current Time
   /// @param period Current Period
   /// @return Controller Interface Success
-  controller_interface::return_type
-  update_and_write_commands(const rclcpp::Time &time,
-                            const rclcpp::Duration &period) override;
+  controller_interface::return_type update_and_write_commands(
+      const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   /// @brief Update method for both the methods for
   /// @return If Successful then True, else false
@@ -92,7 +90,7 @@ protected:
    */
   controller_interface::CallbackReturn read_parameters();
 
-private:
+ private:
   /// @brief list of all command interfaces, in this case effort for each
   /// joint
   std::vector<std::string> command_interface_types_;
@@ -207,6 +205,6 @@ private:
   void set_command(Eigen::VectorXd command);
 };
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #endif

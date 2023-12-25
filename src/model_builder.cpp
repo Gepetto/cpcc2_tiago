@@ -3,7 +3,6 @@
 namespace model_builder {
 
 Model build_model(std::string urdf_path, std::vector<std::string> joints) {
-
   // Load the urdf model
   Model full_model;
   pinocchio::urdf::buildModel(urdf_path, full_model);
@@ -61,4 +60,4 @@ SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id) {
   return data.oMf[end_effector_id];
 }
 
-} // namespace model_builder
+}  // namespace model_builder

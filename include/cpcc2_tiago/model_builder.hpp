@@ -29,6 +29,6 @@ void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
 /// @param data Reduced data
 /// @param end_effector_id End effector frame index
 SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id);
-} // namespace model_builder
+}  // namespace model_builder
 
-#endif // MODEL_BUILDER_HPP
+#endif  // MODEL_BUILDER_HPP

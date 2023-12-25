@@ -62,6 +62,6 @@ struct CircularVector {
   }
 };
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
-#endif // UTILS_HPP
+#endif  // UTILS_HPP

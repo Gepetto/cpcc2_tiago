@@ -267,10 +267,8 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/,
-                            const rclcpp::Duration & /*period*/) {
-
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) {
   current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
   send_solver_current_t(current_t_.nanoseconds());
@@ -375,9 +373,9 @@ void CrocoddylController::update_target_from_subscriber(
   end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
   // write the target to the shared memory
   mutex_.lock();
-  target_shm_->assign(end_effector_target_.data(),
-                      end_effector_target_.data() +
-                          end_effector_target_.size());
+  target_shm_->assign(
+      end_effector_target_.data(),
+      end_effector_target_.data() + end_effector_target_.size());
   mutex_.unlock();
 }
 
@@ -408,7 +406,6 @@ void CrocoddylController::read_solver_results() {
 }
 
 State CrocoddylController::read_state_from_hardware() {
-
   State current_state(n_joints_);
 
   // read the state from the hardware
@@ -482,7 +479,7 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
 #include "pluginlib/class_list_macros.hpp"
 
