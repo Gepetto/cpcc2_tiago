@@ -1,12 +1,12 @@
-#include "cpcc2_tiago/model_builder.hpp"
+#include <cpcc2_tiago/model_builder.hpp>
 
-namespace model_builder {
+namespace cpcc2_tiago::model_builder {
 
-Model build_model(std::string urdf_path, std::vector<std::string> joints) {
-
+pin::Model build_model(const std::string &urdf,
+                       const std::vector<std::string> &joints) {
   // Load the urdf model
-  Model full_model;
-  pinocchio::urdf::buildModel(urdf_path, full_model);
+  pin::Model full_model;
+  pin::urdf::buildModelFromXML(urdf, full_model);
 
   std::vector<std::string> actuatedJointNames = {"universe"};
 
@@ -28,21 +28,11 @@ Model build_model(std::string urdf_path, std::vector<std::string> joints) {
                                   s) == actuatedJointNames.end();
                });
 
-  std::cout << "Actuated joints: " << std::endl;
+  std::vector<pin::FrameIndex> jointsToLockIDs;
 
-  for (auto s : actuatedJointNames) {
-    std::cout << s << std::endl;
-  }
-
-  std::vector<FrameIndex> jointsToLockIDs = {};
-
-  for (std::string jn : jointsToLock) {
-    if (full_model.existJointName(jn)) {
+  for (std::string jn : jointsToLock)
+    if (full_model.existJointName(jn))
       jointsToLockIDs.push_back(full_model.getJointId(jn));
-    } else {
-      std::cout << "Joint " << jn << " not found in the model" << std::endl;
-    }
-  };
 
   Eigen::VectorXd q0 = Eigen::VectorXd::Zero(full_model.nq);
 
@@ -50,15 +40,16 @@ Model build_model(std::string urdf_path, std::vector<std::string> joints) {
 }
 
 void update_reduced_model(const Eigen::Ref<const Eigen::VectorXd> &x,
-                          Model &model, Data &data) {
+                          const pin::Model &model, pin::Data &data) {
   // x is the reduced posture, or contains the reduced posture in the first
   // elements
-  pinocchio::forwardKinematics(model, data, x.head(model.nq));
-  pinocchio::updateFramePlacements(model, data);
+  pin::forwardKinematics(model, data, x.head(model.nq));
+  pin::updateFramePlacements(model, data);
 }
 
-SE3 get_end_effector_SE3(Data &data, FrameIndex &end_effector_id) {
+pin::SE3 get_end_effector_SE3(const pin::Data &data,
+                              pin::FrameIndex end_effector_id) {
   return data.oMf[end_effector_id];
 }
 
-} // namespace model_builder
+}  // namespace cpcc2_tiago::model_builder

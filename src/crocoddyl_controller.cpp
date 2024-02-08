@@ -1,23 +1,6 @@
-#include "cpcc2_tiago/crocoddyl_controller.hpp"
+#include <cpcc2_tiago/crocoddyl_controller.hpp>
 
 namespace cpcc2_tiago {
-
-void CrocoddylController::init_shared_memory() {
-  crocoddyl_shm_ = boost::interprocess::managed_shared_memory(
-      boost::interprocess::open_only, "crocoddyl_shm");
-
-  // Construct a shared memory
-  // Find the vector using the c-string name
-  x_meas_shm_ = crocoddyl_shm_.find<shared_vector>("x_meas_shm").first;
-  us_shm_ = crocoddyl_shm_.find<shared_vector>("us_shm").first;
-  xs0_shm_ = crocoddyl_shm_.find<shared_vector>("xs0_shm").first;
-  xs1_shm_ = crocoddyl_shm_.find<shared_vector>("xs1_shm").first;
-  Ks_shm_ = crocoddyl_shm_.find<shared_vector>("Ks_shm").first;
-  target_shm_ = crocoddyl_shm_.find<shared_vector>("target_shm").first;
-  is_first_update_done_shm_ =
-      crocoddyl_shm_.find<bool>("is_first_update_done_shm").first;
-  current_t_shm_ = crocoddyl_shm_.find<double>("current_t_shm").first;
-}
 
 void CrocoddylController::declare_parameters() {
   param_listener_ = std::make_shared<ParamListener>(get_node());
@@ -52,6 +35,8 @@ controller_interface::CallbackReturn CrocoddylController::read_parameters() {
 
   joints_names_ = params_.joints;
 
+  end_effector_ = params_.end_effector;
+
   x_meas_.resize(2 * n_joints_);
   xs0_.resize(2 * n_joints_);
   xs1_.resize(2 * n_joints_);
@@ -77,7 +62,7 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
   // Read the parameters
   try {
     declare_parameters();
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n",
             e.what());
     return controller_interface::CallbackReturn::ERROR;
@@ -93,29 +78,20 @@ controller_interface::CallbackReturn CrocoddylController::on_init() {
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  // test the access to the mutex
-  while (true) {
-    if (mutex_.try_lock()) {
-      break;
-    }
+  start_pub_ = get_node()->create_publisher<std_msgs::msg::Empty>(
+      "/cpcc2_tiago_start", rclcpp::QoS{1}.reliable().transient_local());
 
-    if (!mutex_.timed_lock(boost::get_system_time() +
-                           boost::posix_time::milliseconds(10))) {
-      mutex_.unlock();
-    }
-  }
-
-  mutex_.unlock();
-
-  // Initialize shared memory
-  init_shared_memory();
-
-  // Build the model from the urdf
-  model_ = model_builder::build_model(params_.urdf_path, joints_names_);
-
-  data_ = Data(model_);
-
-  lh_id_ = model_.getFrameId("hand_tool_joint");
+  urdf_sub_ = get_node()->create_subscription<std_msgs::msg::String>(
+      "/robot_description", rclcpp::QoS{1}.reliable().transient_local(),
+      [this](const std_msgs::msg::String& msg) {
+        RCLCPP_INFO(get_node()->get_logger(),
+                    "Successfully received urdf from /robot_description");
+        model_ = model_builder::build_model(msg.data, joints_names_);
+        data_ = pin::Data(model_);
+        lh_id_ = model_.getFrameId(this->end_effector_);
+        pcs_.init_model(msg.data, this->get_node()->get_logger());
+        this->urdf_sub_.reset();
+      });
 
   // Initialize the topic to receive new targets
   target_subscriber_ =
@@ -267,13 +243,12 @@ CrocoddylController::state_interface_configuration() const {
   return state_interfaces_config;
 }
 
-controller_interface::return_type
-CrocoddylController::update(const rclcpp::Time & /*time*/,
-                            const rclcpp::Duration & /*period*/) {
+controller_interface::return_type CrocoddylController::update(
+    const rclcpp::Time& time, const rclcpp::Duration& /*period*/) {
+  if (urdf_sub_) return controller_interface::return_type::OK;
 
-  current_t_ = rclcpp::Clock(RCL_ROS_TIME).now();
-
-  send_solver_current_t(current_t_.nanoseconds());
+  // const rclcpp::Time time = rclcpp::Clock(RCL_ROS_TIME).now();
+  pcs_.set_current_time(time.nanoseconds());
 
   current_state_ = read_state_from_hardware();
 
@@ -282,7 +257,7 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   x_meas_ << current_state_.position, current_state_.velocity;
 
   // for first solver iteration, send the measured state to the solver
-  send_solver_x(x_meas_);
+  pcs_.set_x_meas(x_meas_);
 
   // update the model with the new state
   model_builder::update_reduced_model(x_meas_, model_, data_);
@@ -298,13 +273,11 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
     is_first_update_ = false;
     // we first set the target to the current end effector pos to
     // set the balancing torque
-    mutex_.lock();
     end_effector_target_ = end_effector_pos_;
-    target_shm_->assign(end_effector_pos_.data(),
-                        end_effector_pos_.data() + end_effector_pos_.size());
-    *is_first_update_done_shm_ = true;
-    mutex_.unlock();
-
+    pcs_.set_target(end_effector_target_);
+    pcs_.start_thread();
+    start_pub_->publish(std_msgs::msg::Empty{});
+    RCLCPP_INFO(get_node()->get_logger(), "Successfully did first update");
     return controller_interface::return_type::OK;
   }
 
@@ -330,11 +303,11 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
   log_msg_x_meas_.data.assign(x_meas_.data(), x_meas_.data() + x_meas_.size());
 
   if (params_.enable_file_logging) {
-    writer_->write(log_msg_err_, "/end_effect_pos_error", current_t_);
-    writer_->write(log_msg_pos_, "/end_effect_pos", current_t_);
-    writer_->write(log_msg_eff_, "/effort_command", current_t_);
-    writer_->write(log_msg_real_eff_, "/real_effort", current_t_);
-    writer_->write(log_msg_x_meas_, "/x_meas", current_t_);
+    writer_->write(log_msg_err_, "/end_effect_pos_error", time);
+    writer_->write(log_msg_pos_, "/end_effect_pos", time);
+    writer_->write(log_msg_eff_, "/effort_command", time);
+    writer_->write(log_msg_real_eff_, "/real_effort", time);
+    writer_->write(log_msg_x_meas_, "/x_meas", time);
   }
 
   if (params_.enable_live_logging) {
@@ -345,22 +318,16 @@ CrocoddylController::update(const rclcpp::Time & /*time*/,
     x_meas_pub_->publish(log_msg_x_meas_);
   }
 
-  // compute the update frequency
-
-  update_freq_ = 1 / ((current_t_ - last_update_time_)
-                          .to_chrono<std::chrono::microseconds>()
-                          .count() *
-                      1e-6);
-
-  update_freq_vector_.circular_append(update_freq_);
-
   // print update frequency
+  if (++step_count_ % 5 == 0)
+    RCLCPP_DEBUG_STREAM(
+        get_node()->get_logger(),
+        "Controllers update freq: " << update_freq_vector_.mean() << " Hz");
 
-  std::cout << "Controllers update freq: " << update_freq_vector_.vector.mean()
-            << " Hz           " << std::endl;
-  std::cout << "\x1b[A";
-
-  last_update_time_ = current_t_;
+  // compute the update frequency
+  const double update_freq = 1e9 / (time - last_update_time_).nanoseconds();
+  update_freq_vector_.append(update_freq);
+  last_update_time_ = time;
 
   return controller_interface::return_type::OK;
 }
@@ -374,41 +341,19 @@ void CrocoddylController::update_target_from_subscriber(
   }
   end_effector_target_ << msg->data[0], msg->data[1], msg->data[2];
   // write the target to the shared memory
-  mutex_.lock();
-  target_shm_->assign(end_effector_target_.data(),
-                      end_effector_target_.data() +
-                          end_effector_target_.size());
-  mutex_.unlock();
-}
-
-void CrocoddylController::send_solver_current_t(double current_t) {
-  // send the current t to sync the time between the controller and the solver
-  mutex_.lock();
-  *current_t_shm_ = current_t;
-  mutex_.unlock();
-}
-
-void CrocoddylController::send_solver_x(Eigen::VectorXd x) {
-  // send the current state to the solver
-  mutex_.lock();
-  x_meas_shm_->assign(x.data(), x.data() + x.size());
-  mutex_.unlock();
+  pcs_.set_target(end_effector_target_);
 }
 
 void CrocoddylController::read_solver_results() {
   // read the solver results from the shared memory
-  mutex_.lock();
-  us_ = Eigen::Map<Eigen::VectorXd>(us_shm_->data(), us_shm_->size());
-  xs0_ = Eigen::Map<Eigen::VectorXd>(xs0_shm_->data(), xs0_shm_->size());
-  xs1_ = Eigen::Map<Eigen::VectorXd>(xs1_shm_->data(), xs1_shm_->size());
-  Ks_ = Eigen::Map<
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-      Ks_shm_->data(), Ks_.rows(), Ks_.cols());
-  mutex_.unlock();
+  auto [uus, uxs0, uxs1, uKs] = pcs_.get_results();
+  us_ = uus;
+  xs0_ = uxs0;
+  xs1_ = uxs1;
+  Ks_ = uKs;
 }
 
 State CrocoddylController::read_state_from_hardware() {
-
   State current_state(n_joints_);
 
   // read the state from the hardware
@@ -445,14 +390,14 @@ Eigen::VectorXd CrocoddylController::read_effort_from_hardware() {
   return effort;
 }
 
-void CrocoddylController::set_u_command(VectorXd command_u) {
+void CrocoddylController::set_u_command(const Eigen::VectorXd& command_u) {
   // send the effort command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[i].set_value(command_u[i]);
   }
 }
 
-void CrocoddylController::set_x0_command(VectorXd command_x) {
+void CrocoddylController::set_x0_command(const Eigen::VectorXd& command_x) {
   // send the position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[n_joints_ + i].set_value(command_x[i]);
@@ -460,7 +405,7 @@ void CrocoddylController::set_x0_command(VectorXd command_x) {
   }
 }
 
-void CrocoddylController::set_K_command(MatrixXd command_K) {
+void CrocoddylController::set_K_command(const Eigen::MatrixXd& command_K) {
   // send the gain command to pveg controller
   for (int i = 0; i < n_joints_; ++i) {
     for (int j = 0; j < 2 * n_joints_; j++) {
@@ -470,7 +415,7 @@ void CrocoddylController::set_K_command(MatrixXd command_K) {
   }
 }
 
-void CrocoddylController::set_x1_command(VectorXd command_x) {
+void CrocoddylController::set_x1_command(const Eigen::VectorXd& command_x) {
   // send the next position and velocity command to pveg controller
   for (int i = 0; i < n_joints_; i++) {
     command_interfaces_[3 * n_joints_ + n_joints_ * 2 * n_joints_ + i]
@@ -482,9 +427,9 @@ void CrocoddylController::set_x1_command(VectorXd command_x) {
   }
 }
 
-} // namespace cpcc2_tiago
+}  // namespace cpcc2_tiago
 
-#include "pluginlib/class_list_macros.hpp"
+#include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(cpcc2_tiago::CrocoddylController,
                        controller_interface::ControllerInterface)
