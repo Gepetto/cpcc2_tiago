@@ -1,7 +1,7 @@
 repos:
   # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: v5.0.0
     hooks:
       - id: check-added-large-files
       - id: check-ast
@@ -17,26 +17,26 @@ repos:
 
   # Python hooks
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.34.0
+    rev: v3.19.1
     hooks:
     -   id: pyupgrade
         args: [--py36-plus]
 
   - repo: https://github.com/psf/black
-    rev: 22.6.0
+    rev: 25.1.0
     hooks:
       - id: black
         args: ["--line-length=99"]
 
   - repo: https://github.com/pycqa/flake8
-    rev: 4.0.1
+    rev: 7.1.1
     hooks:
     - id: flake8
       args: ["--ignore=E501,E203,W503,W291"]
 
   # CPP hooks
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v14.0.6
+    rev: v19.1.7
     hooks:
       - id: clang-format
         args: [--Werror, --dry-run]

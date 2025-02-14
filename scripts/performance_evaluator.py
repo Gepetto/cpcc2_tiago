@@ -2,7 +2,7 @@
 
 """
 This script is used to evaluate the performance of the cpcc2 controller.
-It sends a sequence of targets to the controller and records the error and the 
+It sends a sequence of targets to the controller and records the error and the
 time it takes to reach each target. To evalate if the task is done we compute the stantard deviation
 based on the last 1000 error samples. If the standard deviation is below a certain threshold and the
 current error is below 0.1, we consider the task done and move to the next target.
