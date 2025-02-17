@@ -29,7 +29,7 @@ repos:
         args: ["--line-length=99"]
 
   - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
+    rev: 7.1.2
     hooks:
     - id: flake8
       args: ["--ignore=E501,E203,W503,W291"]
